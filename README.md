@@ -14,6 +14,8 @@ Everything runs on your machine at `http://127.0.0.1:4700`, and data lives in on
 - **Recurring tasks:** daily, weekdays, weekly on chosen days, every N days/weeks/months, monthly or yearly, with an optional end date. Completing one creates the next occurrence (new ID, next due date, subtasks reset). The completed task stays in Done for reports.
 - **Blockers:** mark a task blocked with what it's waiting on. It gets a red glow and a "Blocked" filter, and the blocker clears automatically when the task is completed.
 - **Reports** for a day, a week (you choose which weekday the week ends on, e.g. Thu–Wed) or any custom range. They show what was completed, what's in progress and what's blocked, grouped by project and optionally for one project only, with a per-day chart. Use *Copy for Teams / email* (formatted), *Copy Markdown* or download a `.md` file.
+- **Reminders:** set "Remind me" on any task (quick picks or an exact date and time) and get a Teams message then.
+- **Teams notifications:** a morning digest, due-today reminders, task reminders, new blockers, tasks Claude completes, and a scheduled daily or weekly report. Each can be switched on or off and timed in **Settings**, and anything missed while the laptop was off is sent on catch-up.
 - **Search and filters** by text, priority, due date, tags and blocked status.
 - **Archive** for finished work. Restore anything later.
 - **Activity feed** of every change, including who made it (you or Claude).
@@ -22,7 +24,18 @@ Everything runs on your machine at `http://127.0.0.1:4700`, and data lives in on
 - **Command palette** (`Ctrl K`) and keyboard shortcuts.
 - **Claude Code integration** through an MCP server (see below). Claude's changes appear live, are marked with a spark, and the sidebar shows when Claude Code is active.
 
-Coming next: email and Teams notifications (phase 4).
+Possible next step: email as a second notification channel.
+
+## Teams notifications
+
+1. In Teams, open **Workflows** and create one from the **"Send webhook alerts to a chat"** (or "…to a channel") template, then copy the URL it gives you.
+2. In Orbit, go to **Settings**, paste the URL and press **Send test message**. Teams usually shows the card within a few seconds.
+3. Choose which notifications to get and when.
+
+The webhook URL works like a password, so it's stored only in `data/orbit.db` and is never shown in full or included in exports.
+Orbit only makes outbound HTTPS calls to Microsoft; nothing can reach Orbit from outside. Messages contain task titles and
+details, so they are visible to anyone in that Teams chat or channel. "Open in Orbit" buttons link to `127.0.0.1`, so they only
+work on this laptop.
 
 ## Claude Code
 
@@ -43,6 +56,8 @@ Then ask Claude things like:
 - "What did I finish today?"
 - "ACM-2 is blocked waiting on the client's DR requirements"
 - "Give me my weekly update" / "…for Acme Client, week ending Wednesday" / "…from last Wednesday to today"
+- "Send my weekly update to Teams"
+- "Remind me about INF-3 tomorrow at 3pm"
 
 Tools: `board_overview`, `list_projects`, `list_tasks`, `get_task`, `create_task`, `update_task`,
 `move_task`, `complete_task`, `add_note`, `add_subtasks`, `update_subtask`, `archive_task`,

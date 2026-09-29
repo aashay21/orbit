@@ -106,4 +106,22 @@ export const migrations: string[] = [
   UPDATE columns SET is_active = 1
     WHERE is_done = 0 AND (lower(name) LIKE '%progress%' OR lower(name) LIKE '%review%' OR lower(name) LIKE '%doing%');
   `,
+  /* 004 — notification log (deduplication, retries and history) */ `
+  CREATE TABLE notify_log (
+    id         INTEGER PRIMARY KEY,
+    kind       TEXT NOT NULL,
+    dedupe_key TEXT UNIQUE,
+    title      TEXT NOT NULL,
+    status     TEXT NOT NULL,
+    detail     TEXT,
+    attempts   INTEGER NOT NULL DEFAULT 1,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+  );
+  CREATE INDEX notify_log_time ON notify_log(updated_at);
+  `,
+  /* 005 — per-task reminders */ `
+  ALTER TABLE tasks ADD COLUMN remind_at TEXT;
+  CREATE INDEX tasks_remind ON tasks(remind_at) WHERE remind_at IS NOT NULL;
+  `,
 ];

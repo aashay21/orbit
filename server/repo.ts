@@ -5,6 +5,14 @@ import type {
 } from "../shared/types.ts";
 import { fmtDate, nextOccurrence, parseDate } from "../shared/recurrence.ts";
 import type { Report, ReportTask } from "../shared/report.ts";
+import { DEFAULT_NOTIFICATIONS, type NotificationLogEntry, type NotificationSettings } from "../shared/notifications.ts";
+
+/** Business events the notifier reacts to (separate from UI change events). */
+export interface DomainEvent {
+  type: "blocked" | "completed";
+  taskKey: string;
+  actor: Actor;
+}
 
 export class NotFoundError extends Error {}
 export class ConflictError extends Error {}
@@ -46,7 +54,7 @@ const toTask = (r: Row): Task => ({
   description: r.description, priority: r.priority, dueDate: r.due_date, position: r.position,
   tagIds: r.tag_ids ? String(r.tag_ids).split(",").map(Number) : [],
   recurrence: r.recurrence ? JSON.parse(r.recurrence) : null, nextKey: r.next_key ?? null,
-  blockedReason: r.blocked_reason ?? null, blockedAt: r.blocked_at ?? null,
+  blockedReason: r.blocked_reason ?? null, blockedAt: r.blocked_at ?? null, remindAt: r.remind_at ?? null,
   subtasksDone: r.st_done ?? 0, subtasksTotal: r.st_total ?? 0, notesCount: r.notes_count ?? 0,
   lastActor: r.last_actor, createdAt: r.created_at, updatedAt: r.updated_at,
   completedAt: r.completed_at, archivedAt: r.archived_at,
@@ -55,6 +63,11 @@ const toTask = (r: Row): Task => ({
 const toActivity = (r: Row): Activity => ({
   id: r.id, taskId: r.task_id, taskKey: r.task_key, taskTitle: r.task_title, projectId: r.project_id,
   actor: r.actor, type: r.type, data: JSON.parse(r.data), createdAt: r.created_at,
+});
+
+const toLog = (r: Row): NotificationLogEntry => ({
+  id: r.id, kind: r.kind, title: r.title, status: r.status, detail: r.detail, attempts: r.attempts,
+  createdAt: r.created_at, updatedAt: r.updated_at,
 });
 
 const TASK_SELECT = `
@@ -84,6 +97,7 @@ export interface TaskInput {
   tags?: string[];
   subtasks?: string[];
   recurrence?: Recurrence | null;
+  remindAt?: string | null;
   placement?: "top" | "bottom";
 }
 
@@ -98,6 +112,7 @@ export interface TaskPatch {
   recurrence?: Recurrence | null;
   /** A reason marks the task blocked; null clears it. */
   blocked?: string | null;
+  remindAt?: string | null;
 }
 
 export interface MoveInput {
@@ -121,6 +136,10 @@ export class Repo {
 
   private now() {
     return new Date().toISOString();
+  }
+
+  private domain(ev: DomainEvent) {
+    this.events.emit("domain", ev);
   }
 
   private emit(ctx: Ctx, kind: string, summary: string, taskKey?: string) {
@@ -273,6 +292,13 @@ export class Repo {
     return pos!;
   }
 
+  private remindIso(v: string | null | undefined): string | null {
+    if (v == null || v === "") return null;
+    const d = new Date(v);
+    if (Number.isNaN(d.getTime())) throw new InvalidError("Reminder must be a date and time");
+    return d.toISOString();
+  }
+
   private recurrenceJson(rule: Recurrence | null | undefined): string | null {
     if (!rule) return null;
     if (rule.until) this.assertDate(rule.until);
@@ -307,12 +333,20 @@ export class Repo {
     const col = column as Row;
     const key = this.nextTaskKey(project.id);
     const now = this.now();
+    // Keep a reminder at the same distance from the due date (e.g. "the day before at 9:00").
+    let remind: string | null = null;
+    if (cur.remind_at && cur.due_date) {
+      const shift = parseDate(due).getTime() - parseDate(cur.due_date).getTime();
+      const days = Math.round(shift / 86_400_000);
+      const r = new Date(cur.remind_at);
+      remind = new Date(r.getFullYear(), r.getMonth(), r.getDate() + days, r.getHours(), r.getMinutes()).toISOString();
+    }
     const id = Number(this.db
       .prepare(`INSERT INTO tasks (key, project_id, column_id, title, description, priority, due_date, position,
-          last_actor, created_at, updated_at, completed_at, recurrence)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'system', ?, ?, ?, ?)`)
+          last_actor, created_at, updated_at, completed_at, recurrence, remind_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'system', ?, ?, ?, ?, ?)`)
       .run(key, project.id, col.id, cur.title, cur.description, cur.priority, due, this.positionIn(col.id, null),
-        now, now, col.is_done ? now : null, cur.recurrence).lastInsertRowid);
+        now, now, col.is_done ? now : null, cur.recurrence, remind).lastInsertRowid);
     const tagIds = (this.db.prepare("SELECT tag_id FROM task_tags WHERE task_id = ?").all(cur.id) as Row[]).map((r) => r.tag_id);
     if (tagIds.length) this.setTaskTags(id, tagIds);
     this.db.prepare("INSERT INTO subtasks (task_id, title, position) SELECT ?, title, position FROM subtasks WHERE task_id = ?").run(id, cur.id);
@@ -397,7 +431,11 @@ export class Repo {
       .prepare(`SELECT count(*) AS n FROM tasks t JOIN columns c ON c.id = t.column_id
         WHERE t.archived_at IS NULL AND c.is_done = 0 AND t.blocked_reason IS NOT NULL`)
       .get() as Row;
-    return { doneToday, doneThisWeek: week.reduce((a, b) => a + b, 0), week, overdue, blocked, claudeLastSeen: this.claudeSeenAt };
+    const ns = this.getNotificationSettings();
+    return {
+      doneToday, doneThisWeek: week.reduce((a, b) => a + b, 0), week, overdue, blocked,
+      notificationsReady: ns.enabled && !!ns.teamsWebhook, claudeLastSeen: this.claudeSeenAt,
+    };
   }
 
   /**
@@ -471,6 +509,75 @@ export class Repo {
       createdCount,
       perDay,
     };
+  }
+
+  // ---------- notifications ----------
+
+  getNotificationSettings(): NotificationSettings {
+    const row = this.db.prepare("SELECT value FROM settings WHERE key = 'notifications'").get() as Row | undefined;
+    const saved = row ? (JSON.parse(row.value) as Partial<NotificationSettings>) : {};
+    const d = DEFAULT_NOTIFICATIONS;
+    return {
+      ...d, ...saved,
+      digest: { ...d.digest, ...saved.digest }, dueReminders: { ...d.dueReminders, ...saved.dueReminders },
+      taskReminders: { ...d.taskReminders, ...saved.taskReminders },
+      blockers: { ...d.blockers, ...saved.blockers }, claudeCompleted: { ...d.claudeCompleted, ...saved.claudeCompleted },
+      report: { ...d.report, ...saved.report },
+    };
+  }
+
+  saveNotificationSettings(s: NotificationSettings) {
+    this.db.prepare("INSERT INTO settings (key, value) VALUES ('notifications', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value")
+      .run(JSON.stringify({ ...s, savedAt: this.now() }));
+  }
+
+  /** Open tasks (not done, not archived) due on `date`, or before it when `overdue`. */
+  openTasksDue(date: string, overdue = false): Task[] {
+    return (this.db.prepare(`${TASK_SELECT} JOIN columns c ON c.id = t.column_id
+        WHERE t.archived_at IS NULL AND c.is_done = 0 AND t.due_date ${overdue ? "<" : "="} ?
+        AND t.project_id NOT IN (SELECT id FROM projects WHERE archived_at IS NOT NULL)
+        ORDER BY t.due_date, c.position, t.position`).all(date) as Row[]).map(toTask);
+  }
+
+  /** Open tasks whose reminder time has arrived (and isn't older than `notBefore`). */
+  dueTaskReminders(now: Date, notBefore: Date): Task[] {
+    return (this.db.prepare(`${TASK_SELECT} JOIN columns c ON c.id = t.column_id
+        WHERE t.remind_at IS NOT NULL AND t.remind_at <= ? AND t.remind_at >= ? AND t.archived_at IS NULL AND c.is_done = 0
+        AND t.project_id NOT IN (SELECT id FROM projects WHERE archived_at IS NOT NULL)
+        ORDER BY t.remind_at`).all(now.toISOString(), notBefore.toISOString()) as Row[]).map(toTask);
+  }
+
+  openBlockedTasks(): Task[] {
+    return (this.db.prepare(`${TASK_SELECT} JOIN columns c ON c.id = t.column_id
+        WHERE t.archived_at IS NULL AND c.is_done = 0 AND t.blocked_reason IS NOT NULL
+        AND t.project_id NOT IN (SELECT id FROM projects WHERE archived_at IS NOT NULL)
+        ORDER BY t.blocked_at`).all() as Row[]).map(toTask);
+  }
+
+  notifyLogGet(dedupeKey: string): NotificationLogEntry | null {
+    const r = this.db.prepare("SELECT * FROM notify_log WHERE dedupe_key = ?").get(dedupeKey) as Row | undefined;
+    return r ? toLog(r) : null;
+  }
+
+  /** Records a send attempt; attempts with the same dedupe key update one row. */
+  notifyLogWrite(e: { kind: string; dedupeKey: string | null; title: string; status: "ok" | "error"; detail?: string | null; at?: Date }) {
+    const now = e.at ? e.at.toISOString() : this.now();
+    if (e.dedupeKey) {
+      this.db.prepare(`INSERT INTO notify_log (kind, dedupe_key, title, status, detail, attempts, created_at, updated_at)
+          VALUES (?, ?, ?, ?, ?, 1, ?, ?)
+        ON CONFLICT(dedupe_key) DO UPDATE SET status = excluded.status, detail = excluded.detail,
+          attempts = attempts + 1, updated_at = excluded.updated_at`)
+        .run(e.kind, e.dedupeKey, e.title, e.status, e.detail ?? null, now, now);
+    } else {
+      this.db.prepare("INSERT INTO notify_log (kind, title, status, detail, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)")
+        .run(e.kind, e.title, e.status, e.detail ?? null, now, now);
+    }
+    // Keep the log small.
+    this.db.prepare("DELETE FROM notify_log WHERE id NOT IN (SELECT id FROM notify_log ORDER BY updated_at DESC LIMIT 500)").run();
+  }
+
+  notifyLogRecent(limit = 30): NotificationLogEntry[] {
+    return (this.db.prepare("SELECT * FROM notify_log ORDER BY updated_at DESC, id DESC LIMIT ?").all(limit) as Row[]).map(toLog);
   }
 
   exportAll() {
@@ -656,10 +763,10 @@ export class Repo {
       const position = this.positionIn(column.id, null, null, null, input.placement ?? "bottom");
       const id = Number(this.db
         .prepare(`INSERT INTO tasks (key, project_id, column_id, title, description, priority, due_date, position,
-            last_actor, created_at, updated_at, completed_at, recurrence)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+            last_actor, created_at, updated_at, completed_at, recurrence, remind_at)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
         .run(key, project.id, column.id, title, input.description ?? "", input.priority ?? "none", input.dueDate ?? null,
-          position, ctx.actor, now, now, column.is_done ? now : null, this.recurrenceJson(input.recurrence)).lastInsertRowid);
+          position, ctx.actor, now, now, column.is_done ? now : null, this.recurrenceJson(input.recurrence), this.remindIso(input.remindAt)).lastInsertRowid);
       const tagIds = [...(input.tagIds ?? []), ...this.ensureTags(input.tags ?? [])];
       if (tagIds.length) this.setTaskTags(id, tagIds);
       const insSub = this.db.prepare("INSERT INTO subtasks (task_id, title, position) VALUES (?, ?, ?)");
@@ -702,6 +809,13 @@ export class Repo {
           changes.recurrence = [cur.recurrence ? JSON.parse(cur.recurrence) : null, patch.recurrence];
         }
       }
+      if (patch.remindAt !== undefined) {
+        const next = this.remindIso(patch.remindAt);
+        if (next !== cur.remind_at) {
+          sets.remind_at = next;
+          changes.remindAt = [cur.remind_at, next];
+        }
+      }
       if (patch.blocked !== undefined) {
         const reason = patch.blocked?.trim() || null;
         if (reason !== cur.blocked_reason) {
@@ -734,6 +848,8 @@ export class Repo {
         const row = { ...cur, title: sets.title ?? cur.title };
         if (Object.keys(changes).length) this.log(ctx, "updated", row, changes);
         if (blockChange) this.log(ctx, blockChange, row, blockChange === "blocked" ? { reason: sets.blocked_reason } : { reason: cur.blocked_reason });
+        // Only a newly blocked task notifies, not re-wording an existing blocker.
+        if (blockChange === "blocked" && !cur.blocked_reason) this.domain({ type: "blocked", taskKey: cur.key, actor: ctx.actor });
         this.emit(ctx, "task", blockChange === "blocked" ? `${cur.key} is blocked` : blockChange === "unblocked" ? `Unblocked ${cur.key}` : `Updated ${cur.key}`, cur.key);
       }
       return this.getTask(cur.key);
@@ -760,6 +876,7 @@ export class Repo {
           this.log(ctx, "unblocked", cur, { reason: cur.blocked_reason, onComplete: true });
         }
         const spawned = type === "completed" ? this.spawnNextOccurrence(ctx, cur) : null;
+        if (type === "completed") this.domain({ type: "completed", taskKey: cur.key, actor: ctx.actor });
         this.emit(ctx, "task", `Moved ${cur.key} to ${to.name}${spawned ? ` · next: ${spawned}` : ""}`, cur.key);
       } else {
         this.emit(ctx, "task", `Reordered ${cur.key}`, cur.key);

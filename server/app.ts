@@ -4,6 +4,8 @@ import { z } from "zod";
 import { PRIORITIES, type ChangeEvent } from "../shared/types.ts";
 import { reportToHtml, reportToMarkdown } from "../shared/report.ts";
 import { ConflictError, InvalidError, NotFoundError, type Ctx, type Repo } from "./repo.ts";
+import type { NotificationSettings, NotificationsView } from "../shared/notifications.ts";
+import type { Notifier } from "./notify/notifier.ts";
 
 const id = z.coerce.number().int().positive();
 const color = z.string().regex(/^#[0-9a-fA-F]{6}$/, "Color must be #rrggbb");
@@ -18,7 +20,24 @@ const recurrence = z.object({
   columnId: id.nullable().optional(),
 }).nullable();
 
+const hm = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, "Time must be HH:MM");
+const weekdays = z.array(z.number().int().min(0).max(6)).max(7);
+
 const schemas = {
+  notifications: z.object({
+    enabled: z.boolean().optional(),
+    teamsWebhook: z.string().trim().max(2000).url().startsWith("https://", "The webhook URL must start with https://").nullable().optional(),
+    digest: z.object({ enabled: z.boolean(), time: hm, days: weekdays }).partial().optional(),
+    dueReminders: z.object({ enabled: z.boolean(), time: hm }).partial().optional(),
+    taskReminders: z.object({ enabled: z.boolean() }).partial().optional(),
+    blockers: z.object({ enabled: z.boolean() }).partial().optional(),
+    claudeCompleted: z.object({ enabled: z.boolean() }).partial().optional(),
+    report: z.object({
+      enabled: z.boolean(), frequency: z.enum(["daily", "weekly"]), weekday: z.number().int().min(0).max(6),
+      days: weekdays, time: hm, projectId: id.nullable(), notes: z.boolean(),
+    }).partial().optional(),
+  }),
+  sendReport: z.object({ from: date.unwrap(), to: date.unwrap(), projectId: id.nullable().optional(), notes: z.boolean().optional() }),
   projectCreate: z.object({
     name: z.string().min(1).max(80),
     parentId: id.nullable().optional(),
@@ -61,6 +80,7 @@ const schemas = {
     tags: z.array(z.string().min(1).max(40)).optional(),
     subtasks: z.array(z.string().min(1).max(300)).optional(),
     recurrence: recurrence.optional(),
+    remindAt: z.string().max(40).nullable().optional(),
     placement: z.enum(["top", "bottom"]).optional(),
   }),
   taskPatch: z.object({
@@ -73,6 +93,7 @@ const schemas = {
     tags: z.array(z.string().min(1).max(40)).optional(),
     recurrence: recurrence.optional(),
     blocked: z.string().max(500).nullable().optional(),
+    remindAt: z.string().max(40).nullable().optional(),
   }),
   taskMove: z.object({
     columnId: id,
@@ -108,7 +129,14 @@ async function body<T extends z.ZodType>(c: Context, schema: T): Promise<z.infer
   return parsed.data;
 }
 
-export function createApp(repo: Repo) {
+/** Settings as the UI sees them: the webhook URL is secret, so only a short hint is returned. */
+function publicSettings(s: NotificationSettings) {
+  const { teamsWebhook, ...rest } = s;
+  const hint = teamsWebhook ? `${new URL(teamsWebhook).host} · …${teamsWebhook.slice(-6)}` : null;
+  return { ...rest, webhook: { set: !!teamsWebhook, hint } };
+}
+
+export function createApp(repo: Repo, notifier?: Notifier) {
   const api = new Hono();
 
   api.onError((err, c) => {
@@ -134,6 +162,38 @@ export function createApp(repo: Repo) {
   api.get("/export", (c) => {
     c.header("content-disposition", `attachment; filename="orbit-export-${new Date().toISOString().slice(0, 10)}.json"`);
     return c.json(repo.exportAll());
+  });
+
+  // Notifications (Teams)
+  const notificationsView = (): NotificationsView => ({ settings: publicSettings(repo.getNotificationSettings()), log: repo.notifyLogRecent() });
+  api.get("/notifications", (c) => c.json(notificationsView()));
+  api.put("/notifications", async (c) => {
+    const patch = await body(c, schemas.notifications);
+    const cur = repo.getNotificationSettings();
+    repo.saveNotificationSettings({
+      ...cur,
+      ...(patch.enabled !== undefined ? { enabled: patch.enabled } : {}),
+      ...(patch.teamsWebhook !== undefined ? { teamsWebhook: patch.teamsWebhook || null } : {}),
+      digest: { ...cur.digest, ...patch.digest },
+      dueReminders: { ...cur.dueReminders, ...patch.dueReminders },
+      taskReminders: { ...cur.taskReminders, ...patch.taskReminders },
+      blockers: { ...cur.blockers, ...patch.blockers },
+      claudeCompleted: { ...cur.claudeCompleted, ...patch.claudeCompleted },
+      report: { ...cur.report, ...patch.report },
+    });
+    return c.json(notificationsView());
+  });
+  api.post("/notifications/test", async (c) => {
+    if (!notifier) throw new InvalidError("Notifications aren't running");
+    const error = await notifier.test();
+    return c.json({ ok: !error, error, view: notificationsView() });
+  });
+  api.post("/notifications/report", async (c) => {
+    if (!notifier) throw new InvalidError("Notifications aren't running");
+    const b = await body(c, schemas.sendReport);
+    const error = await notifier.sendReport(b.from, b.to, b.projectId ?? null, b.notes ?? true);
+    if (error) throw new InvalidError(`Couldn't send to Teams: ${error}`);
+    return c.json({ ok: true });
   });
 
   // ?from=&to= (YYYY-MM-DD, inclusive) [&projectId=] [&format=json|md|html] [&notes=0]

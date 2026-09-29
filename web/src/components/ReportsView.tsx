@@ -34,7 +34,8 @@ async function copyRich(html: string, text: string) {
 }
 
 export function ReportsView() {
-  const { board, version, toast, set } = useStore();
+  const { board, version, toast, set, stats } = useStore();
+  const [sending, setSending] = useState(false);
   const [mode, setMode] = useState<Mode>(() => load("orbit.report.mode", "week"));
   const [anchor, setAnchor] = useState(() => new Date());
   const [endDay, setEndDay] = useState<number>(() => load("orbit.report.weekEnd", 0));
@@ -94,6 +95,15 @@ export function ReportsView() {
         <div className="report-actions">
           <button className="new" onClick={() => copy(true)} disabled={!report}><Icon name="copy" size={15} />Copy for Teams / email</button>
           <button className="btn" onClick={() => copy(false)} disabled={!report}>Copy Markdown</button>
+          <button className="btn" disabled={!report || sending}
+            title={stats?.notificationsReady ? "Post this report to Teams now" : "Set up Teams in Settings first"}
+            onClick={async () => {
+              if (!stats?.notificationsReady) { set({ view: "settings" }); return; }
+              setSending(true);
+              try { await api.sendReport({ from: fromS, to: toS, projectId: validProject, notes }); toast("Sent to Teams"); }
+              catch (e) { toast(e instanceof Error ? e.message : "Couldn't send", "error"); }
+              finally { setSending(false); }
+            }}><Icon name="send" size={14} />{sending ? "Sending…" : "Send to Teams"}</button>
           <button className="btn ghost" onClick={download} disabled={!report} title="Download .md"><Icon name="download" size={15} /></button>
         </div>
       </div>

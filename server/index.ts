@@ -6,6 +6,7 @@ import { fileURLToPath } from "node:url";
 import { backupDatabase, openDatabase } from "./db/index.ts";
 import { createApp } from "./app.ts";
 import { Repo } from "./repo.ts";
+import { Notifier } from "./notify/notifier.ts";
 
 const here = dirname(fileURLToPath(import.meta.url));
 // Runs from server/ in development and from dist/server/ once built.
@@ -20,7 +21,9 @@ const webDir = resolve(projectRoot, "dist/web");
 mkdirSync(dataDir, { recursive: true });
 const db = openDatabase(join(dataDir, "orbit.db"));
 const repo = new Repo(db);
-const app = createApp(repo);
+const notifier = new Notifier(repo);
+notifier.start();
+const app = createApp(repo, notifier);
 
 if (existsSync(webDir)) {
   const root = relative(process.cwd(), webDir) || ".";

@@ -10,6 +10,7 @@ const NAV: { view: View; icon: string; label: string; key: string }[] = [
   { view: "reports", icon: "report", label: "Reports", key: "R" },
   { view: "activity", icon: "activity", label: "Activity", key: "A" },
   { view: "archive", icon: "archive", label: "Archive", key: "" },
+  { view: "settings", icon: "gear", label: "Settings", key: "" },
 ];
 
 export function Sidebar() {

@@ -5,7 +5,7 @@ import { PRIORITIES } from "../shared/types.ts";
 import { describeRecurrence, fmtDate, parseDate } from "../shared/recurrence.ts";
 import { reportToMarkdown, type Report } from "../shared/report.ts";
 import { OrbitClient, OrbitError } from "./client.ts";
-import { parseDue, parseRecurrence, projectPath, resolveColumn, resolveProject, ResolveError, type RecurrenceInput } from "./resolve.ts";
+import { parseDue, parseRecurrence, parseRemind, projectPath, resolveColumn, resolveProject, ResolveError, type RecurrenceInput } from "./resolve.ts";
 
 export const INSTRUCTIONS = `Orbit is the user's personal Kanban board, running locally. Use these tools to read and update their tasks.
 
@@ -44,6 +44,8 @@ const repeat = z.union([
 ]).nullable().describe('Repeat rule: "daily", "every weekday", "weekly", "every 2 weeks", "every monday and thursday", "monthly", "yearly", "none" (null also clears), optionally "..., until 2026-12-31"; or a structured object. Completing a repeating task creates its next occurrence.');
 
 const today = () => fmtDate(new Date());
+const remind = z.string().nullable().describe('Reminder sent to the user in Teams: "tomorrow 9am", "friday 14:30", "in 2 hours", "2026-10-01 15:00", or null/"none" to clear');
+const when = (iso: string) => new Date(iso).toLocaleString("en-GB", { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
 
 function dueLabel(d: string | null): string {
   if (!d) return "";
@@ -65,6 +67,7 @@ function taskLine(board: Board, t: Task): string {
     t.subtasksTotal ? `${t.subtasksDone}/${t.subtasksTotal} subtasks` : null,
     t.recurrence && !t.nextKey ? `repeats: ${describeRecurrence(t.recurrence).toLowerCase()}` : null,
     t.blockedReason && !col?.isDone ? `BLOCKED: ${t.blockedReason}` : null,
+    t.remindAt && !col?.isDone ? `reminder ${when(t.remindAt)}` : null,
   ];
   return bits.filter(Boolean).join(" · ");
 }
@@ -78,6 +81,7 @@ function taskDetail(board: Board, t: TaskDetail): string {
     `Priority: ${t.priority}   Due: ${t.dueDate ? dueLabel(t.dueDate).replace(/^due /, "") : "none"}   Tags: ${tags.join(", ") || "none"}`,
     `Repeat: ${describeRecurrence(t.recurrence)}${t.nextKey ? ` (next occurrence: ${t.nextKey})` : ""}`,
     t.blockedReason ? `Blocked since ${t.blockedAt?.slice(0, 10)}: ${t.blockedReason}` : null,
+    t.remindAt ? `Reminder: ${when(t.remindAt)}` : null,
     t.archivedAt ? `Archived: ${t.archivedAt.slice(0, 10)}` : null,
     "",
     "Description:",
@@ -103,6 +107,7 @@ function activityText(a: Activity): string {
     case "unblocked": return d.onComplete ? "blocker cleared on completion" : "unblocked";
     case "note": return `note: ${d.excerpt}`;
     case "updated": return `updated ${Object.keys(d).join(", ")}`;
+    case "task_reminder": return "reminder sent";
     case "subtask_added": case "subtask_done": case "subtask_reopened": return `${a.type.replace("_", " ")}: ${d.title}`;
     default: return a.type.replace(/_/g, " ");
   }
@@ -236,6 +241,7 @@ export function registerTools(server: McpServer, client = new OrbitClient()) {
       tags: tagArg.optional().describe("Tag names; new ones are created"),
       subtasks: z.array(z.string().min(1).max(300)).optional(),
       repeat: repeat.optional(),
+      remind_at: remind.optional(),
     },
   }, safe(async (a) => {
     const b = await board();
@@ -250,6 +256,7 @@ export function registerTools(server: McpServer, client = new OrbitClient()) {
       tags: a.tags,
       subtasks: a.subtasks,
       recurrence: a.repeat !== undefined ? parseRecurrence(a.repeat as RecurrenceInput | null, b) : undefined,
+      remindAt: a.remind_at !== undefined ? parseRemind(a.remind_at) : undefined,
     });
     return `Created ${taskLine(await board(), t)}`;
   }));
@@ -270,6 +277,7 @@ export function registerTools(server: McpServer, client = new OrbitClient()) {
       remove_tags: tagArg.optional(),
       repeat: repeat.optional(),
       blocked: z.string().max(500).nullable().optional().describe("Mark blocked with what it's waiting on, or null to unblock. Completing a task clears it."),
+      remind_at: remind.optional(),
     },
   }, safe(async (a) => {
     const b = await board();
@@ -283,6 +291,7 @@ export function registerTools(server: McpServer, client = new OrbitClient()) {
     if (a.project !== undefined) patch.projectId = resolveProject(b, a.project).id;
     if (a.repeat !== undefined) patch.recurrence = parseRecurrence(a.repeat as RecurrenceInput | null, b);
     if (a.blocked !== undefined) patch.blocked = a.blocked;
+    if (a.remind_at !== undefined) patch.remindAt = parseRemind(a.remind_at);
     if (a.tags || a.add_tags || a.remove_tags) {
       const nameOf = (id: number) => b.tags.find((g) => g.id === id)?.name ?? "";
       let names = a.tags ?? cur.tagIds.map(nameOf);
@@ -406,6 +415,7 @@ export function registerTools(server: McpServer, client = new OrbitClient()) {
       to: z.string().optional().describe("For period 'range' (inclusive); default today"),
       project: z.union([z.string(), z.number()]).optional().describe("Limit to a project and its subprojects"),
       notes: z.boolean().optional().describe("Include the latest note per task (default true)"),
+      send_to_teams: z.boolean().optional().describe("Also post the report to the user's Teams (only when they ask you to send it)"),
     },
     annotations: { readOnlyHint: true },
   }, safe(async (a) => {
@@ -438,7 +448,10 @@ export function registerTools(server: McpServer, client = new OrbitClient()) {
     }
     const projectId = a.project !== undefined ? resolveProject(b, a.project).id : null;
     const report = await client.get<Report>(`/report?from=${from}&to=${to}${projectId != null ? `&projectId=${projectId}` : ""}`);
-    return reportToMarkdown(report, { notes: a.notes ?? true });
+    const md = reportToMarkdown(report, { notes: a.notes ?? true });
+    if (!a.send_to_teams) return md;
+    await client.post("/notifications/report", { from, to, projectId, notes: a.notes ?? true });
+    return `Sent to Teams.\n\n${md}`;
   }));
 
   server.registerTool("recent_activity", {

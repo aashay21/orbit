@@ -14,6 +14,7 @@ import { Sky } from "./components/Sky";
 import { TaskPanel } from "./components/TaskPanel";
 import { ActivityView, ArchiveView, Toasts } from "./components/Views";
 import { ReportsView } from "./components/ReportsView";
+import { SettingsView } from "./components/SettingsView";
 import { Icon } from "./components/Icon";
 
 /** Keeps the board in sync with changes made elsewhere (other tabs, Claude Code). */
@@ -86,6 +87,16 @@ export function App() {
   useLiveUpdates();
   useShortcuts();
 
+  // Links from Teams cards: /?task=INF-3 opens that task, /?view=reports opens a view.
+  useEffect(() => {
+    const q = new URLSearchParams(location.search);
+    const task = q.get("task");
+    const v = q.get("view");
+    if (v && ["board", "reports", "activity", "archive", "settings"].includes(v)) useStore.getState().set({ view: v as never });
+    if (task) useStore.getState().set({ openTask: task.toUpperCase() });
+    if (task || v) history.replaceState(null, "", "/");
+  }, []);
+
   useEffect(() => {
     void load();
     // Refresh date-dependent bits (overdue, stats) when the window regains focus.
@@ -108,6 +119,7 @@ export function App() {
               {view === "activity" && <ActivityView />}
               {view === "archive" && <ArchiveView />}
               {view === "reports" && <ReportsView />}
+              {view === "settings" && <SettingsView />}
           </motion.div>
         )}
       </main>

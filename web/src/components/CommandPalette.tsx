@@ -30,6 +30,7 @@ export function CommandPalette() {
                   <Command.Item onSelect={act(() => { set({ view: "reports" }); remember("orbit.view", "reports"); })}><Icon name="report" />Go to reports<kbd>R</kbd></Command.Item>
                   <Command.Item onSelect={act(() => { set({ view: "activity" }); remember("orbit.view", "activity"); })}><Icon name="activity" />Go to activity<kbd>A</kbd></Command.Item>
                   <Command.Item onSelect={act(() => { set({ view: "archive" }); remember("orbit.view", "archive"); })}><Icon name="archive" />Go to archive</Command.Item>
+                  <Command.Item onSelect={act(() => { set({ view: "settings" }); remember("orbit.view", "settings"); })}><Icon name="gear" />Settings: notifications</Command.Item>
                   <Command.Item onSelect={act(() => setTheme("night"))}><Icon name="moon" />Theme: Night</Command.Item>
                   <Command.Item onSelect={act(() => setTheme("dawn"))}><Icon name="sun" />Theme: Dawn</Command.Item>
                   <Command.Item onSelect={act(() => setTheme("auto"))}><Icon name="auto" />Theme: Match system</Command.Item>

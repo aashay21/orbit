@@ -57,6 +57,8 @@ export interface Task {
   /** Set while the task is blocked: what it's waiting on. */
   blockedReason: string | null;
   blockedAt: string | null;
+  /** When to send a reminder for this task (ISO timestamp), if any. */
+  remindAt: string | null;
   subtasksDone: number;
   subtasksTotal: number;
   notesCount: number;
@@ -115,6 +117,8 @@ export interface Stats {
   week: number[];
   overdue: number;
   blocked: number;
+  /** A Teams webhook is configured and notifications are on, so reminders will arrive. */
+  notificationsReady: boolean;
   /** Last time Claude Code talked to Orbit (since the server started). */
   claudeLastSeen: string | null;
 }

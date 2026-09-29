@@ -1,5 +1,9 @@
 import type { Activity, Board, Column, Priority, Project, Recurrence, Stats, Tag, Task, TaskDetail } from "@shared/types";
 import type { Report } from "@shared/report";
+import type { NotificationSettings, NotificationsView } from "@shared/notifications";
+
+type DeepPartial<T> = { [K in keyof T]?: T[K] extends object ? Partial<T[K]> : T[K] };
+export type NotificationsPatch = DeepPartial<Omit<NotificationSettings, "savedAt">>;
 
 /** Identifies this tab so it can ignore live-update echoes of its own changes. */
 export const clientId = crypto.randomUUID();
@@ -41,6 +45,7 @@ export interface TaskInput {
   tagIds?: number[];
   tags?: string[];
   recurrence?: Recurrence | null;
+  remindAt?: string | null;
   placement?: "top" | "bottom";
 }
 
@@ -63,6 +68,10 @@ export const api = {
 
   report: (from: string, to: string, projectId: number | null) =>
     request<Report>("GET", `/report?from=${from}&to=${to}${projectId != null ? `&projectId=${projectId}` : ""}`),
+  notifications: () => request<NotificationsView>("GET", "/notifications"),
+  saveNotifications: (p: NotificationsPatch) => request<NotificationsView>("PUT", "/notifications", p),
+  testNotification: () => request<{ ok: boolean; error: string | null; view: NotificationsView }>("POST", "/notifications/test"),
+  sendReport: (b: { from: string; to: string; projectId: number | null; notes: boolean }) => request<{ ok: true }>("POST", "/notifications/report", b),
   archivedTasks: () => request<Task[]>("GET", "/tasks?archived=1"),
   task: (key: string) => request<TaskDetail>("GET", `/tasks/${encodeURIComponent(key)}`),
   createTask: (t: TaskInput) => request<TaskDetail>("POST", "/tasks", t),

@@ -10,6 +10,7 @@ import { cx, dueInfo, inDays, PRIORITY_META, relativeTime, today } from "../util
 import { Icon, Spark } from "./Icon";
 import { ConfirmButton, Popover, PriorityBars, ProjectPicker } from "./ui";
 import { RecurrenceEditor } from "./RecurrenceEditor";
+import { RemindEditor } from "./RemindEditor";
 import { describeRecurrence } from "@shared/recurrence";
 
 export function TaskPanel() {
@@ -105,6 +106,9 @@ function PanelContent({ taskKey, onClose }: { taskKey: string; onClose(): void }
 
         <label>Due</label>
         <DueEditor value={task.dueDate} done={!!column?.isDone} onChange={(dueDate) => patch({ dueDate })} />
+
+        <label>Remind me</label>
+        <RemindEditor value={task.remindAt} dueDate={task.dueDate} onChange={(remindAt) => patch({ remindAt })} />
 
         <label>Repeat</label>
         {task.nextKey ? (
@@ -204,6 +208,7 @@ export function describe(a: Activity): string {
       if (d.priority) parts.push(`set priority to ${PRIORITY_META[d.priority[1] as Priority]?.label ?? d.priority[1]}`);
       if (d.dueDate) parts.push(d.dueDate[1] ? `set due date to ${format(parseISO(d.dueDate[1]), "d MMM")}` : "cleared the due date");
       if (d.project) parts.push(`moved it to ${d.project[1]}`);
+      if (d.remindAt) parts.push(d.remindAt[1] ? `set a reminder for ${format(new Date(d.remindAt[1]), "EEE d MMM, HH:mm")}` : "removed the reminder");
       if (d.tags) parts.push("changed tags");
       if (d.recurrence) parts.push(d.recurrence[1] ? `set it to repeat ${describeRecurrence(d.recurrence[1]).replace(/^Every/, "every")}` : "stopped it repeating");
       if (d.description) parts.push("edited the description");

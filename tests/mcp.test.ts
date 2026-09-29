@@ -7,7 +7,7 @@ import { Repo } from "../server/repo.ts";
 import { createApp } from "../server/app.ts";
 import { OrbitClient } from "../mcp/client.ts";
 import { registerTools } from "../mcp/tools.ts";
-import { parseDue, parseRecurrence } from "../mcp/resolve.ts";
+import { parseDue, parseRecurrence, parseRemind } from "../mcp/resolve.ts";
 import type { Board } from "../shared/types.ts";
 import { fmtDate } from "../shared/recurrence.ts";
 import { reportTitle } from "../shared/report.ts";
@@ -146,6 +146,19 @@ describe("resolvers", () => {
     expect(parseDue("+3d", tue)).toBe("2026-10-02");
     expect(parseDue("in 2 weeks", tue)).toBe("2026-10-13");
     expect(parseDue("none", tue)).toBeNull();
+  });
+
+  it("parses reminder times", () => {
+    const now = new Date(2026, 8, 29, 10, 0); // Tue 10:00
+    const at = (m: number, d: number, h: number, min = 0) => new Date(2026, m, d, h, min).toISOString();
+    expect(parseRemind("tomorrow 9am", now)).toBe(at(8, 30, 9));
+    expect(parseRemind("friday at 14:30", now)).toBe(at(9, 2, 14, 30));
+    expect(parseRemind("3pm", now)).toBe(at(8, 29, 15));
+    expect(parseRemind("9:00", now)).toBe(at(8, 30, 9)); // already past today → tomorrow
+    expect(parseRemind("2026-10-01 15:00", now)).toBe(at(9, 1, 15));
+    expect(parseRemind("in 2 hours", now)).toBe(at(8, 29, 12));
+    expect(parseRemind("none", now)).toBeNull();
+    expect(() => parseRemind("soonish", now)).toThrow(/Couldn't read the reminder/);
   });
 
   it("parses repeat rules from words", () => {

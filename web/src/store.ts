@@ -3,7 +3,7 @@ import type { Board, Priority, Stats, Task } from "@shared/types";
 import { api, ApiError } from "./api";
 import { descendantIds, inDays, today } from "./util";
 
-export type View = "board" | "archive" | "activity" | "reports";
+export type View = "board" | "archive" | "activity" | "reports" | "settings";
 export type ThemePref = "night" | "dawn" | "auto";
 export type DueFilter = "any" | "overdue" | "today" | "week" | "none";
 

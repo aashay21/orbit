@@ -824,3 +824,54 @@ kbd {
 .week-end { display: flex; align-items: center; gap: 8px; }
 .week-end select option { background: var(--panel-solid); }
 .week-chart .wc-stack { max-width: 100%; }
+
+/* ---------- reminders & settings ---------- */
+.remind { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.remind .field-btn svg:first-child { color: var(--faint); }
+.remind .field-btn.remind-on { border-color: color-mix(in oklab, #fbbf24 45%, transparent); }
+.remind .field-btn.remind-on svg:first-child { color: #f59e0b; }
+.remind .field-btn.remind-past { color: var(--muted); }
+.mini-btn.warn { color: #f59e0b; border-color: color-mix(in oklab, #f59e0b 40%, transparent); }
+.remind-custom { display: flex; flex-direction: column; gap: 6px; padding: 6px 10px 8px; }
+.remind-custom input { background: var(--input); border: 1px solid var(--panel-b); border-radius: 8px; padding: 6px 8px; outline: 0; font-size: 12.5px; color: var(--text); }
+.bell-ic { display: flex; color: #f59e0b; filter: drop-shadow(0 0 4px rgba(245, 158, 11, .6)); }
+
+.settings-grid { max-width: 980px; display: flex; flex-direction: column; gap: 16px; }
+.set-card { padding: 16px 18px; border-radius: 18px; background: var(--panel); border: 1px solid var(--panel-b); backdrop-filter: blur(16px); }
+.set-card h3 {
+  display: flex; align-items: center; gap: 8px; margin-bottom: 12px;
+  font-family: var(--mono); font-size: 10.5px; font-weight: 500; letter-spacing: .14em; text-transform: uppercase; color: var(--faint);
+}
+.set-card h3 .pill { margin-left: auto; letter-spacing: 0; text-transform: none; font-family: var(--font); }
+.pill.ok { background: color-mix(in oklab, #34d399 18%, transparent); color: color-mix(in oklab, #34d399 80%, var(--text)); }
+.pill.warn { background: color-mix(in oklab, #f59e0b 18%, transparent); color: color-mix(in oklab, #f59e0b 85%, var(--text)); }
+.set-help { line-height: 1.55; margin: 4px 0 10px; }
+.set-help b { color: var(--text); font-weight: 500; }
+.webhook-set { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; flex-wrap: wrap; }
+.webhook-set code { font-family: var(--mono); font-size: 12px; padding: 4px 8px; border-radius: 7px; background: var(--hover); }
+.webhook-form { display: flex; gap: 8px; }
+.webhook-form input { flex: 1; min-width: 0; background: var(--input); border: 1px solid var(--panel-b); border-radius: 10px; padding: 8px 11px; outline: 0; font-family: var(--mono); font-size: 12px; color: var(--text); }
+.webhook-form input:focus { border-color: color-mix(in oklab, var(--violet) 45%, transparent); }
+.rule { display: grid; grid-template-columns: auto 1fr; gap: 4px 14px; align-items: center; padding: 12px 4px; border-top: 1px solid var(--panel-b); }
+.rule:first-of-type { border-top: 0; padding-top: 2px; }
+.rule-text { display: flex; flex-direction: column; }
+.rule-text b { font-weight: 500; font-size: 13.5px; }
+.rule-text span { font-size: 12.5px; color: var(--muted); }
+.rule-controls { grid-column: 2; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 6px; }
+.rule.off .rule-text b { color: var(--muted); }
+.rule.off .rule-controls { opacity: .45; }
+.time-input { background: var(--input); border: 1px solid var(--panel-b); border-radius: 9px; padding: 5px 8px; outline: 0; font-size: 12.8px; color: var(--text); font-family: var(--font); }
+.time-input option { background: var(--panel-solid); }
+.recur-days.compact { padding: 0; }
+.recur-days.compact .day-pill { width: 26px; height: 26px; font-size: 10.5px; }
+.seg.small button { padding: 4px 10px; font-size: 12px; }
+.toggle.big { font-size: 13.5px; color: var(--text); }
+.notify-log { display: flex; flex-direction: column; }
+.log-row { display: grid; grid-template-columns: 10px 84px 1fr auto; align-items: center; gap: 10px; padding: 7px 4px; font-size: 12.8px; border-top: 1px solid var(--panel-b); }
+.log-row:first-child { border-top: 0; }
+.log-dot { width: 7px; height: 7px; border-radius: 50%; background: #34d399; box-shadow: 0 0 8px rgba(52, 211, 153, .6); }
+.log-dot.error { background: var(--rose); box-shadow: 0 0 8px rgba(251, 113, 133, .6); }
+.log-kind { font-family: var(--mono); font-size: 10.5px; color: var(--faint); text-transform: uppercase; letter-spacing: .06em; }
+.log-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.log-title em { color: var(--rose); font-style: normal; }
+.log-row time { color: var(--faint); font-size: 11.5px; white-space: nowrap; }

@@ -146,3 +146,43 @@ export function parseRecurrence(input: RecurrenceInput | null, board: Board): Re
   }
   throw new ResolveError(`Couldn't read the repeat rule "${input}". Try: daily, every weekday, weekly, every 2 weeks, every monday and thursday, monthly, yearly, or none.`);
 }
+
+/**
+ * Parses a reminder time: an ISO date-time, "in 2 hours" / "in 30 minutes" / "in 3 days",
+ * or a date phrase plus a time ("tomorrow 9am", "friday at 14:30", "2026-10-01 15:00").
+ * A bare time means today, or tomorrow if that time has passed. Returns an ISO timestamp,
+ * or null for "none"/"clear".
+ */
+export function parseRemind(input: string | null, now = new Date()): string | null {
+  if (input == null) return null;
+  const s = norm(input);
+  if (["", "none", "clear", "off", "null"].includes(s)) return null;
+  const rel = s.match(/^in\s+(\d+)\s*(m|min|mins|minutes?|h|hr|hrs|hours?|d|days?)$/);
+  if (rel) {
+    const n = Number(rel[1]);
+    const ms = rel[2].startsWith("m") ? 60_000 : rel[2].startsWith("h") ? 3_600_000 : 86_400_000;
+    return new Date(now.getTime() + n * ms).toISOString();
+  }
+  const iso = s.match(/^(\d{4}-\d{2}-\d{2})[t ](\d{1,2}):(\d{2})$/);
+  if (iso) {
+    const [y, m, d] = iso[1].split("-").map(Number);
+    return new Date(y, m - 1, d, Number(iso[2]), Number(iso[3])).toISOString();
+  }
+  const withTime = s.match(/^(?:(.*?)\s+(?:at\s+)?)?(\d{1,2})(?::(\d{2}))?\s*(am|pm)?$/);
+  if (withTime && (withTime[3] || withTime[4] || withTime[1])) {
+    let h = Number(withTime[2]);
+    const min = Number(withTime[3] ?? 0);
+    if (withTime[4] === "pm" && h < 12) h += 12;
+    if (withTime[4] === "am" && h === 12) h = 0;
+    if (h > 23 || min > 59) throw new ResolveError(`"${input}" isn't a valid time`);
+    let day: string;
+    if (withTime[1]) day = parseDue(withTime[1], now) ?? fmtDate(now);
+    else {
+      const todayAt = new Date(now.getFullYear(), now.getMonth(), now.getDate(), h, min);
+      day = fmtDate(todayAt > now ? now : new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1));
+    }
+    const [y, m, d] = day.split("-").map(Number);
+    return new Date(y, m - 1, d, h, min).toISOString();
+  }
+  throw new ResolveError(`Couldn't read the reminder time "${input}". Try "tomorrow 9am", "friday 14:30", "in 2 hours" or "2026-10-01 15:00".`);
+}
