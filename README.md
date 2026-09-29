@@ -69,6 +69,13 @@ journalctl --user -u orbit -f
 "Install Orbit" (the install icon in the address bar, or ⋮ → *Cast, save and share* → *Install page as app*).
 Orbit then gets its own window and an entry in the app launcher.
 
+To have the Orbit window open by itself every time you log in (it waits for the service to be ready):
+
+```bash
+npm run autostart:install    # after installing the app from Chrome
+npm run autostart:remove     # turn it off again
+```
+
 To start Orbit at boot instead of at login, run this once:
 
 ```bash

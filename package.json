@@ -22,7 +22,9 @@
     "service:uninstall": "bash scripts/uninstall-service.sh",
     "backup": "node scripts/snapshot.mjs manual",
     "build:mcp": "esbuild mcp/index.ts --bundle --platform=node --format=esm --packages=external --outfile=dist/mcp/index.js",
-    "mcp:install": "bash scripts/install-mcp.sh"
+    "mcp:install": "bash scripts/install-mcp.sh",
+    "autostart:install": "bash scripts/install-autostart.sh",
+    "autostart:remove": "bash scripts/install-autostart.sh --remove"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
