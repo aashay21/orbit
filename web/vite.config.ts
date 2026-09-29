@@ -18,5 +18,6 @@ export default defineConfig({
   build: {
     outDir: fileURLToPath(new URL("../dist/web", import.meta.url)),
     emptyOutDir: true,
+    chunkSizeWarningLimit: 2000, // served from localhost; one bundle is fine
   },
 });
