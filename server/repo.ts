@@ -106,6 +106,8 @@ export interface MoveInput {
 
 export class Repo {
   readonly events = new EventEmitter();
+  /** Updated on every request that identifies as Claude; shown as "connected" in the UI. */
+  claudeSeenAt: string | null = null;
 
   constructor(readonly db: DB) {
     this.events.setMaxListeners(100);
@@ -387,7 +389,7 @@ export class Repo {
       .prepare(`SELECT count(*) AS n FROM tasks t JOIN columns c ON c.id = t.column_id
         WHERE t.archived_at IS NULL AND c.is_done = 0 AND t.due_date < ?`)
       .get(today) as Row;
-    return { doneToday, doneThisWeek: week.reduce((a, b) => a + b, 0), week, overdue };
+    return { doneToday, doneThisWeek: week.reduce((a, b) => a + b, 0), week, overdue, claudeLastSeen: this.claudeSeenAt };
   }
 
   exportAll() {

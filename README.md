@@ -3,7 +3,7 @@
 A local-only Kanban board for every project you're working on, with a night-sky (and dawn) look.
 Everything runs on your machine at `http://127.0.0.1:4700`, and data lives in one SQLite file.
 
-## Features (phase 1)
+## Features
 
 - **One board, all projects.** Filter by a project (including its subprojects) from the sidebar.
 - **Projects and nested subprojects.** Each has its own colour. Top-level projects set a task prefix.
@@ -11,6 +11,7 @@ Everything runs on your machine at `http://127.0.0.1:4700`, and data lives in on
 - **Customisable columns.** The defaults are Backlog, To Do, In Progress, Review and Done. You can rename, recolour, reorder, add and delete columns, set WIP limits, and choose which columns count as done.
 - **Smooth drag-and-drop** between and within columns. Keyboard dragging also works.
 - **Per-task fields:** priority, optional due date, tags, Markdown description, subtasks, notes and full history.
+- **Recurring tasks:** daily, weekdays, weekly on chosen days, every N days/weeks/months, monthly or yearly, with an optional end date. Completing one creates the next occurrence (new ID, next due date, subtasks reset). The completed task stays in Done for reports.
 - **Search and filters** by text, priority, due date and tags.
 - **Archive** for finished work. Restore anything later.
 - **Activity feed** of every change, including who made it (you or Claude).
@@ -18,7 +19,33 @@ Everything runs on your machine at `http://127.0.0.1:4700`, and data lives in on
 - **Themes:** Night, Dawn or Auto (follows your system).
 - **Command palette** (`Ctrl K`) and keyboard shortcuts.
 
-Coming next: Claude Code integration via MCP (phase 2), daily and weekly reports (phase 3), and email and Teams notifications (phase 4).
+- **Claude Code integration** through an MCP server (see below). Claude's changes appear live, are marked with a spark, and the sidebar shows when Claude Code is active.
+
+Coming next: daily and weekly reports (phase 3), then email and Teams notifications (phase 4).
+
+## Claude Code
+
+`mcp/` is a small MCP server that Claude Code starts on demand. It talks to the running Orbit over
+`http://127.0.0.1:4700`, so every change shows up live and is attributed to Claude. Register it once
+(user scope, so it works in every project):
+
+```bash
+npm run mcp:install
+```
+
+Then ask Claude things like:
+
+- "What's on my board?" / "What's overdue?"
+- "Create a task under Infra/Terraform to rotate the prod secrets, high priority, due Friday"
+- "I'm starting INF-12", "Add a note to INF-12 that the pipeline is fixed", "INF-12 is done"
+- "Make ACM-4 repeat every Monday"
+- "What did I finish today?"
+
+Tools: `board_overview`, `list_projects`, `list_tasks`, `get_task`, `create_task`, `update_task`,
+`move_task`, `complete_task`, `add_note`, `add_subtasks`, `update_subtask`, `archive_task`,
+`create_project` and `recent_activity`. There is deliberately no delete tool: Claude can archive
+tasks, but only you delete them. Projects can be named by name, path (`Acme Client/Landing Zone`),
+prefix (`ACM`) or id; dates accept `today`, `friday`, `+3d` or `YYYY-MM-DD`.
 
 ## Running it
 
@@ -90,7 +117,8 @@ server/          Hono API + SQLite (better-sqlite3)
   repo.ts        all data logic: projects, columns, tasks, activity, stats
   app.ts         REST routes, validation (zod), live-update stream (SSE)
   index.ts       entry point: static files, backups, listen on 127.0.0.1
-shared/types.ts  types shared by server and UI
+mcp/             MCP server for Claude Code (tools.ts, resolve.ts for names/dates/repeat rules)
+shared/          types and recurrence rules shared by server, UI and MCP
 web/             React + Vite UI (dnd-kit for dragging, Motion for animation)
 scripts/         service install/update, snapshots
 tests/           server tests
@@ -106,9 +134,9 @@ GET    /api/stats                  done today / this week / overdue
 GET    /api/activity?limit=&before=
 POST   /api/projects               {name, parentId?, key?, color?}
 PATCH  /api/projects/:id           {..., archived?}
-POST   /api/tasks                  {title, projectId, columnId?, priority?, dueDate?, tags?, subtasks?}
+POST   /api/tasks                  {title, projectId, columnId?, priority?, dueDate?, tags?, subtasks?, recurrence?}
 GET    /api/tasks/:key             task + subtasks, notes, history
-PATCH  /api/tasks/:key             {title?, description?, priority?, dueDate?, projectId?, tags?}
+PATCH  /api/tasks/:key             {title?, description?, priority?, dueDate?, projectId?, tags?, recurrence?}
 POST   /api/tasks/:key/move        {columnId, afterKey?, beforeKey?}
 POST   /api/tasks/:key/notes       {body}
 POST   /api/tasks/:key/archive | /restore

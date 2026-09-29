@@ -11,7 +11,7 @@
     "dev": "concurrently -k -n server,web -c magenta,cyan \"npm:dev:server\" \"npm:dev:web\"",
     "dev:server": "ORBIT_DATA=./data-dev tsx watch server/index.ts",
     "dev:web": "vite --config web/vite.config.ts",
-    "build": "npm run build:web && npm run build:server",
+    "build": "npm run build:web && npm run build:server && npm run build:mcp",
     "build:web": "vite build --config web/vite.config.ts",
     "build:server": "esbuild server/index.ts --bundle --platform=node --format=esm --packages=external --outfile=dist/server/index.js",
     "start": "node dist/server/index.js",
@@ -20,7 +20,9 @@
     "service:install": "bash scripts/install-service.sh",
     "service:update": "bash scripts/update.sh",
     "service:uninstall": "bash scripts/uninstall-service.sh",
-    "backup": "node scripts/snapshot.mjs manual"
+    "backup": "node scripts/snapshot.mjs manual",
+    "build:mcp": "esbuild mcp/index.ts --bundle --platform=node --format=esm --packages=external --outfile=dist/mcp/index.js",
+    "mcp:install": "bash scripts/install-mcp.sh"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
@@ -30,6 +32,7 @@
     "@fontsource-variable/geist-mono": "^5.3.0",
     "@fontsource/instrument-serif": "^5.3.0",
     "@hono/node-server": "^2.1.2",
+    "@modelcontextprotocol/sdk": "^1.31.0",
     "better-sqlite3": "^13.0.3",
     "cmdk": "^1.1.1",
     "date-fns": "^4.4.0",

@@ -1,8 +1,8 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import { remember, useStore, type View } from "../store";
 import { setTheme } from "../theme";
-import { cx, descendantIds, projectTree, type ProjectNode } from "../util";
+import { cx, descendantIds, projectTree, relativeTime, type ProjectNode } from "../util";
 import { Icon } from "./Icon";
 
 const NAV: { view: View; icon: string; label: string; key: string }[] = [
@@ -12,7 +12,7 @@ const NAV: { view: View; icon: string; label: string; key: string }[] = [
 ];
 
 export function Sidebar() {
-  const { board, view, projectFilter, themePref, set } = useStore();
+  const { board, stats, view, projectFilter, themePref, set } = useStore();
   const [showArchived, setShowArchived] = useState(false);
   const [collapsed, setCollapsed] = useState<Set<number>>(() => new Set());
 
@@ -122,6 +122,7 @@ export function Sidebar() {
       </div>
 
       <div className="side-foot">
+        <ClaudeStatus lastSeen={stats?.claudeLastSeen ?? null} />
         <div className="theme-switch" role="radiogroup" aria-label="Theme">
           {(["night", "dawn", "auto"] as const).map((t) => (
             <button key={t} role="radio" aria-checked={themePref === t} className={cx(themePref === t && "on")}
@@ -137,5 +138,25 @@ export function Sidebar() {
         </button>
       </div>
     </aside>
+  );
+}
+
+/** Shows whether Claude Code has been talking to Orbit recently (via the MCP server). */
+function ClaudeStatus({ lastSeen }: { lastSeen: string | null }) {
+  const [, tick] = useState(0);
+  useEffect(() => {
+    const t = setInterval(() => tick((n) => n + 1), 30_000);
+    return () => clearInterval(t);
+  }, []);
+  const mins = lastSeen ? (Date.now() - new Date(lastSeen).getTime()) / 60_000 : Infinity;
+  const active = mins < 15;
+  return (
+    <div className={cx("claude-status", active && "active")} title="Claude Code reaches Orbit through its MCP server">
+      <span className={cx("pulse", !active && "idle")} />
+      <div>
+        <b>Claude Code</b>
+        {active ? `active ${relativeTime(lastSeen!)}` : lastSeen ? `last seen ${relativeTime(lastSeen)}` : "not seen since restart"}
+      </div>
+    </div>
   );
 }

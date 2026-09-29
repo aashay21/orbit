@@ -708,3 +708,14 @@ kbd {
 .recur-foot { display: flex; align-items: center; gap: 10px; padding: 6px 4px 0; border-top: 1px solid var(--panel-b); }
 .recur-foot .muted { flex: 1; }
 .repeat-ic { display: flex; color: var(--teal); filter: drop-shadow(0 0 4px color-mix(in oklab, var(--teal) 60%, transparent)); }
+
+/* ---------- claude status ---------- */
+.claude-status {
+  display: flex; align-items: center; gap: 10px; padding: 9px 12px; border-radius: 12px;
+  border: 1px solid var(--panel-b); background: var(--col); font-size: 12px; color: var(--muted);
+}
+.claude-status b { display: block; color: var(--text); font-weight: 500; font-size: 12.8px; }
+.claude-status.active { border-color: color-mix(in oklab, #34d399 30%, transparent); }
+.pulse { width: 8px; height: 8px; border-radius: 50%; flex: none; background: #34d399; animation: pulse 2.4s infinite; }
+.pulse.idle { background: var(--faint); animation: none; }
+@keyframes pulse { 0% { box-shadow: 0 0 0 0 rgba(52, 211, 153, .55); } 70% { box-shadow: 0 0 0 9px rgba(52, 211, 153, 0); } 100% { box-shadow: 0 0 0 0 rgba(52, 211, 153, 0); } }

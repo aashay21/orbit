@@ -109,6 +109,8 @@ export interface Stats {
   /** Completed counts Monday..Sunday of the current week. */
   week: number[];
   overdue: number;
+  /** Last time Claude Code talked to Orbit (since the server started). */
+  claudeLastSeen: string | null;
 }
 
 export interface ChangeEvent {

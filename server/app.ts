@@ -120,6 +120,7 @@ export function createApp(repo: Repo) {
     if (origin && !/^http:\/\/(127\.0\.0\.1|localhost)(:\d+)?$/.test(origin)) {
       return c.json({ error: "Forbidden origin" }, 403);
     }
+    if (c.req.header("x-orbit-actor") === "claude") repo.claudeSeenAt = new Date().toISOString();
     await next();
   });
 
