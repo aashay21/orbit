@@ -18,7 +18,6 @@ Everything runs on your machine at `http://127.0.0.1:4700`, and data lives in on
 - **Live updates:** changes from other tabs or Claude Code appear instantly.
 - **Themes:** Night, Dawn or Auto (follows your system).
 - **Command palette** (`Ctrl K`) and keyboard shortcuts.
-
 - **Claude Code integration** through an MCP server (see below). Claude's changes appear live, are marked with a spark, and the sidebar shows when Claude Code is active.
 
 Coming next: daily and weekly reports (phase 3), then email and Teams notifications (phase 4).
