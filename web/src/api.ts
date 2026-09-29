@@ -1,4 +1,4 @@
-import type { Activity, Board, Column, Priority, Project, Stats, Tag, Task, TaskDetail } from "@shared/types";
+import type { Activity, Board, Column, Priority, Project, Recurrence, Stats, Tag, Task, TaskDetail } from "@shared/types";
 
 /** Identifies this tab so it can ignore live-update echoes of its own changes. */
 export const clientId = crypto.randomUUID();
@@ -39,6 +39,7 @@ export interface TaskInput {
   dueDate?: string | null;
   tagIds?: number[];
   tags?: string[];
+  recurrence?: Recurrence | null;
   placement?: "top" | "bottom";
 }
 

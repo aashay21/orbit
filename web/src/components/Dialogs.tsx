@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
-import { PRIORITIES, type Priority } from "@shared/types";
+import { PRIORITIES, type Priority, type Recurrence } from "@shared/types";
+import { RecurrenceEditor } from "./RecurrenceEditor";
 import { api } from "../api";
 import { remember, useStore } from "../store";
 import { cx, descendantIds, PRIORITY_META, SWATCHES } from "../util";
@@ -20,6 +21,7 @@ export function NewTaskDialog() {
   const [dueDate, setDueDate] = useState<string | null>(null);
   const [tagIds, setTagIds] = useState<number[]>([]);
   const [newTags, setNewTags] = useState<string[]>([]);
+  const [recurrence, setRecurrence] = useState<Recurrence | null>(null);
   const [another, setAnother] = useState(false);
 
   // Reset the form each time it opens, defaulting to the filtered or last-used project.
@@ -29,7 +31,7 @@ export function NewTaskDialog() {
     let last: number | null = null;
     try { last = JSON.parse(localStorage.getItem("orbit.lastProject") ?? "null"); } catch { /* ignore */ }
     const pick = [projectFilter, last].find((id) => id != null && live.some((p) => p.id === id)) ?? live[0]?.id ?? null;
-    setTitle(""); setDescription(""); setPriority("none"); setDueDate(null); setTagIds([]); setNewTags([]);
+    setTitle(""); setDescription(""); setPriority("none"); setDueDate(null); setTagIds([]); setNewTags([]); setRecurrence(null);
     setProjectId(pick);
     setColumnId(newTask?.columnId ?? board.columns[0]?.id ?? null);
   }, [open]);
@@ -38,7 +40,7 @@ export function NewTaskDialog() {
     if (!title.trim() || projectId == null) return;
     remember("orbit.lastProject", projectId);
     const t = await run(() => api.createTask({
-      title: title.trim(), description, projectId, columnId: columnId ?? undefined, priority, dueDate, tagIds, tags: newTags,
+      title: title.trim(), description, projectId, columnId: columnId ?? undefined, priority, dueDate, tagIds, tags: newTags, recurrence,
     }));
     if (!t) return;
     useStore.getState().toast(`Created ${t.key}`, "info", t.title);
@@ -83,6 +85,8 @@ export function NewTaskDialog() {
           </div>
           <label>Due</label>
           <DueEditor value={dueDate} onChange={setDueDate} />
+          <label>Repeat</label>
+          <RecurrenceEditor value={recurrence} dueDate={dueDate} onChange={setRecurrence} />
           <label>Tags</label>
           <div className="tag-edit-wrap">
             <TagEditor tagIds={allTags} onChange={(p) => { if (p.tagIds) setTagIds(p.tagIds); if (p.tags) setNewTags((n) => [...new Set([...n, ...p.tags!])]); }} />

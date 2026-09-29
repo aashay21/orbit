@@ -1,8 +1,9 @@
 import { EventEmitter } from "node:events";
 import type { DB } from "./db/index.ts";
 import type {
-  Activity, Actor, Board, ChangeEvent, Column, Note, Priority, Project, Stats, Subtask, Tag, Task, TaskDetail,
+  Activity, Actor, Board, ChangeEvent, Column, Note, Priority, Project, Recurrence, Stats, Subtask, Tag, Task, TaskDetail,
 } from "../shared/types.ts";
+import { fmtDate, nextOccurrence } from "../shared/recurrence.ts";
 
 export class NotFoundError extends Error {}
 export class ConflictError extends Error {}
@@ -43,6 +44,7 @@ const toTask = (r: Row): Task => ({
   id: r.id, key: r.key, projectId: r.project_id, columnId: r.column_id, title: r.title,
   description: r.description, priority: r.priority, dueDate: r.due_date, position: r.position,
   tagIds: r.tag_ids ? String(r.tag_ids).split(",").map(Number) : [],
+  recurrence: r.recurrence ? JSON.parse(r.recurrence) : null, nextKey: r.next_key ?? null,
   subtasksDone: r.st_done ?? 0, subtasksTotal: r.st_total ?? 0, notesCount: r.notes_count ?? 0,
   lastActor: r.last_actor, createdAt: r.created_at, updatedAt: r.updated_at,
   completedAt: r.completed_at, archivedAt: r.archived_at,
@@ -79,6 +81,7 @@ export interface TaskInput {
   tagIds?: number[];
   tags?: string[];
   subtasks?: string[];
+  recurrence?: Recurrence | null;
   placement?: "top" | "bottom";
 }
 
@@ -90,6 +93,7 @@ export interface TaskPatch {
   projectId?: number;
   tagIds?: number[];
   tags?: string[];
+  recurrence?: Recurrence | null;
 }
 
 export interface MoveInput {
@@ -261,6 +265,55 @@ export class Repo {
       pos = compute();
     }
     return pos!;
+  }
+
+  private recurrenceJson(rule: Recurrence | null | undefined): string | null {
+    if (!rule) return null;
+    if (rule.until) this.assertDate(rule.until);
+    if (rule.columnId != null) this.columnRow(rule.columnId);
+    const clean: Recurrence = { freq: rule.freq, interval: Math.max(1, Math.floor(rule.interval || 1)) };
+    if (rule.freq === "weekly" && rule.weekdays?.length) clean.weekdays = [...new Set(rule.weekdays)].sort();
+    if (rule.freq === "monthly" && rule.monthDay) clean.monthDay = rule.monthDay;
+    if (rule.until) clean.until = rule.until;
+    if (rule.columnId != null) clean.columnId = rule.columnId;
+    return JSON.stringify(clean);
+  }
+
+  /**
+   * When a recurring task is completed, creates its next occurrence (once): same project, title,
+   * description, priority, tags and unchecked subtasks, with the due date moved to the next slot.
+   * Returns the new key, or null if the task doesn't recur / the series has ended.
+   */
+  private spawnNextOccurrence(ctx: Ctx, cur: Row): string | null {
+    if (!cur.recurrence || cur.next_key) return null;
+    const rule = JSON.parse(cur.recurrence) as Recurrence;
+    const today = fmtDate(new Date());
+    const due = nextOccurrence(rule, cur.due_date ?? today, today);
+    if (!due) {
+      this.log(ctx, "recurrence_ended", cur, { until: rule.until });
+      return null;
+    }
+    const project = this.projectRow(cur.project_id);
+    if (project.archived_at) return null;
+    const column = (rule.columnId != null && this.db.prepare("SELECT * FROM columns WHERE id = ?").get(rule.columnId))
+      || this.db.prepare("SELECT * FROM columns WHERE is_done = 0 ORDER BY position LIMIT 1").get()
+      || this.db.prepare("SELECT * FROM columns ORDER BY position LIMIT 1").get();
+    const col = column as Row;
+    const key = this.nextTaskKey(project.id);
+    const now = this.now();
+    const id = Number(this.db
+      .prepare(`INSERT INTO tasks (key, project_id, column_id, title, description, priority, due_date, position,
+          last_actor, created_at, updated_at, completed_at, recurrence)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'system', ?, ?, ?, ?)`)
+      .run(key, project.id, col.id, cur.title, cur.description, cur.priority, due, this.positionIn(col.id, null),
+        now, now, col.is_done ? now : null, cur.recurrence).lastInsertRowid);
+    const tagIds = (this.db.prepare("SELECT tag_id FROM task_tags WHERE task_id = ?").all(cur.id) as Row[]).map((r) => r.tag_id);
+    if (tagIds.length) this.setTaskTags(id, tagIds);
+    this.db.prepare("INSERT INTO subtasks (task_id, title, position) SELECT ?, title, position FROM subtasks WHERE task_id = ?").run(id, cur.id);
+    this.db.prepare("UPDATE tasks SET next_key = ? WHERE id = ?").run(key, cur.id);
+    this.log({ ...ctx, actor: "system" }, "created", this.taskRow(key), { column: col.name, recurredFrom: cur.key });
+    this.log(ctx, "recurred", cur, { nextKey: key, dueDate: due });
+    return key;
   }
 
   // ---------- reads ----------
@@ -519,10 +572,10 @@ export class Repo {
       const position = this.positionIn(column.id, null, null, null, input.placement ?? "bottom");
       const id = Number(this.db
         .prepare(`INSERT INTO tasks (key, project_id, column_id, title, description, priority, due_date, position,
-            last_actor, created_at, updated_at, completed_at)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+            last_actor, created_at, updated_at, completed_at, recurrence)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
         .run(key, project.id, column.id, title, input.description ?? "", input.priority ?? "none", input.dueDate ?? null,
-          position, ctx.actor, now, now, column.is_done ? now : null).lastInsertRowid);
+          position, ctx.actor, now, now, column.is_done ? now : null, this.recurrenceJson(input.recurrence)).lastInsertRowid);
       const tagIds = [...(input.tagIds ?? []), ...this.ensureTags(input.tags ?? [])];
       if (tagIds.length) this.setTaskTags(id, tagIds);
       const insSub = this.db.prepare("INSERT INTO subtasks (task_id, title, position) VALUES (?, ?, ?)");
@@ -556,6 +609,13 @@ export class Repo {
       if (patch.dueDate !== undefined && patch.dueDate !== cur.due_date) {
         sets.due_date = patch.dueDate;
         changes.dueDate = [cur.due_date, patch.dueDate];
+      }
+      if (patch.recurrence !== undefined) {
+        const next = this.recurrenceJson(patch.recurrence);
+        if (next !== cur.recurrence) {
+          sets.recurrence = next;
+          changes.recurrence = [cur.recurrence ? JSON.parse(cur.recurrence) : null, patch.recurrence];
+        }
       }
       if (patch.projectId !== undefined && patch.projectId !== cur.project_id) {
         const from = this.projectRow(cur.project_id);
@@ -600,7 +660,8 @@ export class Repo {
         this.touch(ctx, cur.id);
         const type = to.is_done && !from.is_done ? "completed" : !to.is_done && from.is_done ? "reopened" : "moved";
         this.log(ctx, type, cur, { from: from.name, to: to.name });
-        this.emit(ctx, "task", `Moved ${cur.key} to ${to.name}`, cur.key);
+        const spawned = type === "completed" ? this.spawnNextOccurrence(ctx, cur) : null;
+        this.emit(ctx, "task", `Moved ${cur.key} to ${to.name}${spawned ? ` · next: ${spawned}` : ""}`, cur.key);
       } else {
         this.emit(ctx, "task", `Reordered ${cur.key}`, cur.key);
       }

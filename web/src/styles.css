@@ -679,3 +679,32 @@ kbd {
   .head { flex-direction: column; align-items: flex-start; }
   .search { width: 100%; }
 }
+
+/* ---------- recurrence ---------- */
+.recur { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.recur-btn svg:first-child { color: var(--faint); }
+.recur-btn.on { border-color: color-mix(in oklab, var(--teal) 40%, transparent); }
+.recur-btn.on svg:first-child { color: var(--teal); }
+.recur-done { display: flex; align-items: center; gap: 8px; font-size: 13px; }
+.recur-done svg { color: var(--teal); }
+.recur-custom { padding: 2px 6px 6px; display: flex; flex-direction: column; gap: 9px; }
+.recur-custom .menu-title { padding: 4px 4px 0; }
+.recur-row { display: flex; align-items: center; gap: 8px; padding: 0 4px; }
+.recur-row > .muted { width: 76px; flex: none; }
+.recur-n { width: 58px; }
+.recur-n, .recur-date, .recur-row select {
+  background: var(--input); border: 1px solid var(--panel-b); border-radius: 8px; padding: 5px 8px; outline: 0; font-size: 12.5px; color: var(--text);
+}
+.recur-row select { flex: 1; min-width: 0; }
+.recur-row select option { background: var(--panel-solid); }
+.recur-date { flex: 1; }
+.recur-days { display: flex; gap: 4px; padding: 0 4px; }
+.day-pill {
+  width: 30px; height: 30px; border-radius: 50%; font-size: 11.5px; font-family: var(--mono); color: var(--muted);
+  border: 1px solid var(--panel-b); transition: all .2s var(--ease);
+}
+.day-pill:hover { color: var(--text); }
+.day-pill.on { color: #fff; border-color: transparent; background: linear-gradient(135deg, var(--violet), var(--teal)); box-shadow: 0 0 14px -4px var(--violet); }
+.recur-foot { display: flex; align-items: center; gap: 10px; padding: 6px 4px 0; border-top: 1px solid var(--panel-b); }
+.recur-foot .muted { flex: 1; }
+.repeat-ic { display: flex; color: var(--teal); filter: drop-shadow(0 0 4px color-mix(in oklab, var(--teal) 60%, transparent)); }

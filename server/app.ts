@@ -8,6 +8,14 @@ const id = z.coerce.number().int().positive();
 const color = z.string().regex(/^#[0-9a-fA-F]{6}$/, "Color must be #rrggbb");
 const date = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Date must be YYYY-MM-DD").nullable();
 const priority = z.enum(PRIORITIES);
+const recurrence = z.object({
+  freq: z.enum(["daily", "weekly", "monthly", "yearly"]),
+  interval: z.number().int().min(1).max(365),
+  weekdays: z.array(z.number().int().min(0).max(6)).max(7).optional(),
+  monthDay: z.number().int().min(1).max(31).optional(),
+  until: date.optional(),
+  columnId: id.nullable().optional(),
+}).nullable();
 
 const schemas = {
   projectCreate: z.object({
@@ -49,6 +57,7 @@ const schemas = {
     tagIds: z.array(id).optional(),
     tags: z.array(z.string().min(1).max(40)).optional(),
     subtasks: z.array(z.string().min(1).max(300)).optional(),
+    recurrence: recurrence.optional(),
     placement: z.enum(["top", "bottom"]).optional(),
   }),
   taskPatch: z.object({
@@ -59,6 +68,7 @@ const schemas = {
     projectId: id.optional(),
     tagIds: z.array(id).optional(),
     tags: z.array(z.string().min(1).max(40)).optional(),
+    recurrence: recurrence.optional(),
   }),
   taskMove: z.object({
     columnId: id,

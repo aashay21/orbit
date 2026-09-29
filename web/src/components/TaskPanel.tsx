@@ -9,6 +9,8 @@ import { useStore } from "../store";
 import { cx, dueInfo, inDays, PRIORITY_META, relativeTime, today } from "../util";
 import { Icon, Spark } from "./Icon";
 import { ConfirmButton, Popover, PriorityBars, ProjectPicker } from "./ui";
+import { RecurrenceEditor } from "./RecurrenceEditor";
+import { describeRecurrence } from "@shared/recurrence";
 
 export function TaskPanel() {
   const openKey = useStore((s) => s.openTask);
@@ -102,6 +104,17 @@ function PanelContent({ taskKey, onClose }: { taskKey: string; onClose(): void }
         <label>Due</label>
         <DueEditor value={task.dueDate} done={!!column?.isDone} onChange={(dueDate) => patch({ dueDate })} />
 
+        <label>Repeat</label>
+        {task.nextKey ? (
+          <div className="recur-done">
+            <Icon name="repeat" size={14} /><span>{describeRecurrence(task.recurrence)}</span>
+            <span className="muted small">· next is</span>
+            <button className="tid link" onClick={() => useStore.getState().set({ openTask: task.nextKey })}>{task.nextKey}</button>
+          </div>
+        ) : (
+          <RecurrenceEditor value={task.recurrence} dueDate={task.dueDate} onChange={(recurrence) => patch({ recurrence })} />
+        )}
+
         <label>Tags</label>
         <TagEditor tagIds={task.tagIds} onChange={(p) => patch(p)} />
       </div>
@@ -168,7 +181,9 @@ export function describe(a: Activity): string {
   const who = a.actor === "claude" ? "Claude" : a.actor === "system" ? "Orbit" : "You";
   const d = a.data as Record<string, any>;
   switch (a.type) {
-    case "created": return `${who} created this in ${d.column}`;
+    case "created": return d.recurredFrom ? `Repeated from ${d.recurredFrom} into ${d.column}` : `${who} created this in ${d.column}`;
+    case "recurred": return `${who} completed it, so ${d.nextKey} was scheduled for ${format(parseISO(d.dueDate), "EEE d MMM")}`;
+    case "recurrence_ended": return "Its repeat series ended with this one";
     case "moved": return `${who} moved it from ${d.from} to ${d.to}`;
     case "completed": return `${who} completed it (${d.from} → ${d.to})`;
     case "reopened": return `${who} reopened it (${d.from} → ${d.to})`;
@@ -186,6 +201,7 @@ export function describe(a: Activity): string {
       if (d.dueDate) parts.push(d.dueDate[1] ? `set due date to ${format(parseISO(d.dueDate[1]), "d MMM")}` : "cleared the due date");
       if (d.project) parts.push(`moved it to ${d.project[1]}`);
       if (d.tags) parts.push("changed tags");
+      if (d.recurrence) parts.push(d.recurrence[1] ? `set it to repeat ${describeRecurrence(d.recurrence[1]).replace(/^Every/, "every")}` : "stopped it repeating");
       if (d.description) parts.push("edited the description");
       return `${who} ${parts.join(", ") || "updated it"}`;
     }

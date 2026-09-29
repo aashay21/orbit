@@ -1,5 +1,8 @@
 // Types shared by the server and the web UI.
 
+import type { Recurrence } from "./recurrence.ts";
+export type { Recurrence } from "./recurrence.ts";
+
 export const PRIORITIES = ["none", "low", "medium", "high", "urgent"] as const;
 export type Priority = (typeof PRIORITIES)[number];
 
@@ -46,6 +49,9 @@ export interface Task {
   dueDate: string | null; // YYYY-MM-DD
   position: number;
   tagIds: number[];
+  recurrence: Recurrence | null;
+  /** For a completed recurring task: the key of the occurrence it spawned. */
+  nextKey: string | null;
   subtasksDone: number;
   subtasksTotal: number;
   notesCount: number;

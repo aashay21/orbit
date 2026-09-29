@@ -6,6 +6,7 @@ import { useStore } from "../store";
 import { cx, dueInfo, PRIORITY_META, projectPath } from "../util";
 import { Icon, Spark } from "./Icon";
 import { PriorityBars } from "./ui";
+import { describeRecurrence } from "@shared/recurrence";
 
 interface CardProps {
   task: Task;
@@ -22,7 +23,7 @@ export const CardBody = memo(function CardBody({ task, project, projects, tags, 
   const path = projectPath(projects, task.projectId);
   const due = task.dueDate ? dueInfo(task.dueDate, done) : null;
   const taskTags = tags.filter((t) => task.tagIds.includes(t.id));
-  const hasMeta = due || task.subtasksTotal > 0 || taskTags.length > 0 || task.lastActor === "claude" || task.notesCount > 0;
+  const hasMeta = due || task.recurrence || task.subtasksTotal > 0 || taskTags.length > 0 || task.lastActor === "claude" || task.notesCount > 0;
 
   return (
     <article className={cx("card", done && "done", lifted && "lifted")} style={{ ["--acc" as string]: acc }}>
@@ -45,6 +46,7 @@ export const CardBody = memo(function CardBody({ task, project, projects, tags, 
       {hasMeta && (
         <div className="meta">
           {due && <span className={cx("due", due.state)}><Icon name="clock" size={12} />{due.label}</span>}
+          {task.recurrence && !task.nextKey && <span className="repeat-ic" title={describeRecurrence(task.recurrence)}><Icon name="repeat" size={12} /></span>}
           {task.subtasksTotal > 0 && <SubtaskRing done={task.subtasksDone} total={task.subtasksTotal} color={acc} />}
           {task.notesCount > 0 && <span className="notes-count" title={`${task.notesCount} note${task.notesCount === 1 ? "" : "s"}`}><Icon name="note" size={12} />{task.notesCount}</span>}
           <span className="end">

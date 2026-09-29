@@ -94,4 +94,9 @@ export const migrations: string[] = [
     value TEXT NOT NULL
   );
   `,
+  /* 002 — recurring tasks */ `
+  ALTER TABLE tasks ADD COLUMN recurrence TEXT;
+  -- Key of the occurrence spawned when this task was completed, so it's only created once.
+  ALTER TABLE tasks ADD COLUMN next_key TEXT;
+  `,
 ];
