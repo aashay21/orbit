@@ -2,6 +2,7 @@ import { Hono, type Context } from "hono";
 import { streamSSE } from "hono/streaming";
 import { z } from "zod";
 import { PRIORITIES, type ChangeEvent } from "../shared/types.ts";
+import { reportToHtml, reportToMarkdown } from "../shared/report.ts";
 import { ConflictError, InvalidError, NotFoundError, type Ctx, type Repo } from "./repo.ts";
 
 const id = z.coerce.number().int().positive();
@@ -38,12 +39,14 @@ const schemas = {
     name: z.string().min(1).max(40),
     color: color.optional(),
     isDone: z.boolean().optional(),
+    isActive: z.boolean().optional(),
     wipLimit: z.number().int().positive().nullable().optional(),
   }),
   columnPatch: z.object({
     name: z.string().min(1).max(40).optional(),
     color: color.optional(),
     isDone: z.boolean().optional(),
+    isActive: z.boolean().optional(),
     wipLimit: z.number().int().positive().nullable().optional(),
     shift: z.union([z.literal(-1), z.literal(1)]).optional(),
   }),
@@ -69,6 +72,7 @@ const schemas = {
     tagIds: z.array(id).optional(),
     tags: z.array(z.string().min(1).max(40)).optional(),
     recurrence: recurrence.optional(),
+    blocked: z.string().max(500).nullable().optional(),
   }),
   taskMove: z.object({
     columnId: id,
@@ -130,6 +134,18 @@ export function createApp(repo: Repo) {
   api.get("/export", (c) => {
     c.header("content-disposition", `attachment; filename="orbit-export-${new Date().toISOString().slice(0, 10)}.json"`);
     return c.json(repo.exportAll());
+  });
+
+  // ?from=&to= (YYYY-MM-DD, inclusive) [&projectId=] [&format=json|md|html] [&notes=0]
+  api.get("/report", (c) => {
+    const q = c.req.query();
+    const today = new Date();
+    const iso = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
+    const report = repo.getReport(q.from ?? iso, q.to ?? q.from ?? iso, q.projectId ? Number(q.projectId) : null);
+    const opts = { notes: q.notes !== "0" };
+    if (q.format === "md") return c.text(reportToMarkdown(report, opts), 200, { "content-type": "text/markdown; charset=utf-8" });
+    if (q.format === "html") return c.html(reportToHtml(report, opts));
+    return c.json(report);
   });
 
   api.get("/activity", (c) => {

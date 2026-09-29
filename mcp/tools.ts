@@ -2,7 +2,8 @@ import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { Activity, Board, Project, Stats, Task, TaskDetail } from "../shared/types.ts";
 import { PRIORITIES } from "../shared/types.ts";
-import { describeRecurrence, fmtDate } from "../shared/recurrence.ts";
+import { describeRecurrence, fmtDate, parseDate } from "../shared/recurrence.ts";
+import { reportToMarkdown, type Report } from "../shared/report.ts";
 import { OrbitClient, OrbitError } from "./client.ts";
 import { parseDue, parseRecurrence, projectPath, resolveColumn, resolveProject, ResolveError, type RecurrenceInput } from "./resolve.ts";
 
@@ -63,6 +64,7 @@ function taskLine(board: Board, t: Task): string {
     tags.length ? tags.join(" ") : null,
     t.subtasksTotal ? `${t.subtasksDone}/${t.subtasksTotal} subtasks` : null,
     t.recurrence && !t.nextKey ? `repeats: ${describeRecurrence(t.recurrence).toLowerCase()}` : null,
+    t.blockedReason && !col?.isDone ? `BLOCKED: ${t.blockedReason}` : null,
   ];
   return bits.filter(Boolean).join(" · ");
 }
@@ -75,6 +77,7 @@ function taskDetail(board: Board, t: TaskDetail): string {
     `Column: ${col?.name}${col?.isDone ? " (done)" : ""}   Project: ${projectPath(board.projects, t.projectId)}`,
     `Priority: ${t.priority}   Due: ${t.dueDate ? dueLabel(t.dueDate).replace(/^due /, "") : "none"}   Tags: ${tags.join(", ") || "none"}`,
     `Repeat: ${describeRecurrence(t.recurrence)}${t.nextKey ? ` (next occurrence: ${t.nextKey})` : ""}`,
+    t.blockedReason ? `Blocked since ${t.blockedAt?.slice(0, 10)}: ${t.blockedReason}` : null,
     t.archivedAt ? `Archived: ${t.archivedAt.slice(0, 10)}` : null,
     "",
     "Description:",
@@ -96,6 +99,8 @@ function activityText(a: Activity): string {
     case "created": return d.recurredFrom ? `repeated from ${d.recurredFrom} into ${d.column}` : `created in ${d.column}`;
     case "moved": case "completed": case "reopened": return `${a.type} ${d.from} → ${d.to}`;
     case "recurred": return `scheduled next occurrence ${d.nextKey} for ${d.dueDate}`;
+    case "blocked": return `blocked: ${d.reason}`;
+    case "unblocked": return d.onComplete ? "blocker cleared on completion" : "unblocked";
     case "note": return `note: ${d.excerpt}`;
     case "updated": return `updated ${Object.keys(d).join(", ")}`;
     case "subtask_added": case "subtask_done": case "subtask_reopened": return `${a.type.replace("_", " ")}: ${d.title}`;
@@ -139,6 +144,7 @@ export function registerTools(server: McpServer, client = new OrbitClient()) {
       projectTree(b),
       "",
       ...inProgress.flatMap((c) => section(c.name, b.tasks.filter((t) => t.columnId === c.id))),
+      ...section("Blocked", open.filter((t) => t.blockedReason)),
       ...section("Overdue", overdue),
       ...section("Due in the next 7 days", soon),
     ].join("\n");
@@ -159,6 +165,7 @@ export function registerTools(server: McpServer, client = new OrbitClient()) {
       priority: z.array(priority).optional(),
       due: z.enum(["overdue", "today", "this_week", "none"]).optional(),
       tag: z.string().optional(),
+      blocked: z.boolean().optional().describe("true: only blocked tasks; false: only unblocked"),
       search: z.string().optional().describe("Matches ID, title or description"),
       include_done: z.boolean().optional(),
       archived: z.boolean().optional(),
@@ -185,6 +192,7 @@ export function registerTools(server: McpServer, client = new OrbitClient()) {
       tasks = tasks.filter((t) => !doneCols.has(t.columnId));
     }
     if (a.priority?.length) tasks = tasks.filter((t) => a.priority!.includes(t.priority));
+    if (a.blocked !== undefined) tasks = tasks.filter((t) => !!t.blockedReason === a.blocked);
     const t0 = today();
     const weekEnd = fmtDate(new Date(Date.now() + 7 * 86_400_000));
     if (a.due === "overdue") tasks = tasks.filter((t) => t.dueDate && t.dueDate < t0);
@@ -248,7 +256,7 @@ export function registerTools(server: McpServer, client = new OrbitClient()) {
 
   server.registerTool("update_task", {
     title: "Update task",
-    description: "Change a task's title, description, priority, due date, project, tags or repeat rule. Only the fields you pass change.",
+    description: "Change a task's title, description, priority, due date, project, tags, repeat rule or blocker. Only the fields you pass change.",
     inputSchema: {
       key: z.string(),
       title: z.string().min(1).max(300).optional(),
@@ -261,6 +269,7 @@ export function registerTools(server: McpServer, client = new OrbitClient()) {
       add_tags: tagArg.optional(),
       remove_tags: tagArg.optional(),
       repeat: repeat.optional(),
+      blocked: z.string().max(500).nullable().optional().describe("Mark blocked with what it's waiting on, or null to unblock. Completing a task clears it."),
     },
   }, safe(async (a) => {
     const b = await board();
@@ -273,6 +282,7 @@ export function registerTools(server: McpServer, client = new OrbitClient()) {
     if (a.due_date !== undefined) patch.dueDate = parseDue(a.due_date);
     if (a.project !== undefined) patch.projectId = resolveProject(b, a.project).id;
     if (a.repeat !== undefined) patch.recurrence = parseRecurrence(a.repeat as RecurrenceInput | null, b);
+    if (a.blocked !== undefined) patch.blocked = a.blocked;
     if (a.tags || a.add_tags || a.remove_tags) {
       const nameOf = (id: number) => b.tags.find((g) => g.id === id)?.name ?? "";
       let names = a.tags ?? cur.tagIds.map(nameOf);
@@ -383,6 +393,52 @@ export function registerTools(server: McpServer, client = new OrbitClient()) {
     const p = await client.post<Project>("/projects", { name: a.name, parentId, key: a.key, description: a.description });
     const after = await board();
     return `Created project ${projectPath(after.projects, p.id)} (id ${p.id}${p.key ? `, tasks numbered ${p.key}-1, ${p.key}-2…` : ""}).`;
+  }));
+
+  server.registerTool("get_report", {
+    title: "Status report",
+    description: "Daily/weekly status update as Markdown: tasks completed in the period, plus what's in progress and blocked right now, grouped by project. Ready to paste into Teams or email.",
+    inputSchema: {
+      period: z.enum(["today", "yesterday", "day", "this_week", "last_week", "range"]).optional().describe("Default: this_week. 'day' uses date; 'range' uses from/to"),
+      date: z.string().optional().describe("For period 'day': YYYY-MM-DD or 'monday' etc."),
+      week_ends_on: z.string().optional().describe("For weekly periods: weekday the week ends on (default sunday, i.e. Mon–Sun). 'wednesday' gives Thu–Wed."),
+      from: z.string().optional().describe("For period 'range' (inclusive), e.g. last wednesday's date"),
+      to: z.string().optional().describe("For period 'range' (inclusive); default today"),
+      project: z.union([z.string(), z.number()]).optional().describe("Limit to a project and its subprojects"),
+      notes: z.boolean().optional().describe("Include the latest note per task (default true)"),
+    },
+    annotations: { readOnlyHint: true },
+  }, safe(async (a) => {
+    const b = await board();
+    const t0 = parseDate(today());
+    const shift = (d: Date, n: number) => fmtDate(new Date(d.getFullYear(), d.getMonth(), d.getDate() + n));
+    const DAYS = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"];
+    const endDay = a.week_ends_on ? DAYS.findIndex((d) => d.startsWith(a.week_ends_on!.trim().toLowerCase().slice(0, 3))) : 0;
+    if (endDay < 0) throw new ResolveError(`Unknown weekday "${a.week_ends_on}"`);
+    let from: string, to: string;
+    switch (a.period ?? "this_week") {
+      case "today": from = to = today(); break;
+      case "yesterday": from = to = shift(t0, -1); break;
+      case "day": from = to = parseDue(a.date ?? "today") ?? today(); break;
+      case "range":
+        if (!a.from) throw new ResolveError("period 'range' needs from (and optionally to)");
+        from = parseDue(a.from) ?? today();
+        to = parseDue(a.to ?? "today") ?? today();
+        if (a.from.toLowerCase().startsWith("last ") || /^[a-z]+$/i.test(a.from.trim())) {
+          // Weekday names mean the most recent past one, e.g. "wednesday" → last Wednesday.
+          const want = DAYS.findIndex((d) => d.startsWith(a.from!.replace(/^last\s+/i, "").trim().toLowerCase().slice(0, 3)));
+          if (want >= 0) from = shift(t0, -(((t0.getDay() - want + 7) % 7) || 7));
+        }
+        break;
+      default: {
+        const end = shift(t0, (endDay - t0.getDay() + 7) % 7);
+        to = a.period === "last_week" ? shift(parseDate(end), -7) : end;
+        from = shift(parseDate(to), -6);
+      }
+    }
+    const projectId = a.project !== undefined ? resolveProject(b, a.project).id : null;
+    const report = await client.get<Report>(`/report?from=${from}&to=${to}${projectId != null ? `&projectId=${projectId}` : ""}`);
+    return reportToMarkdown(report, { notes: a.notes ?? true });
   }));
 
   server.registerTool("recent_activity", {

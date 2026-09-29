@@ -33,6 +33,7 @@ export function BoardHeader() {
           <div className="stat"><div className="v">{stats.doneToday}</div><div className="l">done today</div></div>
           <div className="stat"><div className="v">{stats.doneThisWeek}</div><div className="l">this week</div></div>
           {stats.overdue > 0 && <div className="stat overdue"><div className="v">{stats.overdue}</div><div className="l">overdue</div></div>}
+          {stats.blocked > 0 && <div className="stat overdue"><div className="v">{stats.blocked}</div><div className="l">blocked</div></div>}
           <div className="week" title="Tasks completed each day this week">
             <div className="bars">
               {stats.week.map((v, i) => (
@@ -110,6 +111,10 @@ export function Toolbar() {
           ))}
         </div>
       </Popover>
+
+      <button className={cx("chip", s.blockedOnly && "on blocked-chip")} onClick={() => s.set({ blockedOnly: !s.blockedOnly })}>
+        <Icon name="block" size={14} />Blocked{s.stats?.blocked ? <span className="chip-n">{s.stats.blocked}</span> : null}
+      </button>
 
       {filtersActive(s) && <button className="chip clear-all" onClick={s.clearFilters}><Icon name="close" size={13} />Clear</button>}
 

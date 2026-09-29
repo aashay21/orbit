@@ -3,7 +3,8 @@ import type { DB } from "./db/index.ts";
 import type {
   Activity, Actor, Board, ChangeEvent, Column, Note, Priority, Project, Recurrence, Stats, Subtask, Tag, Task, TaskDetail,
 } from "../shared/types.ts";
-import { fmtDate, nextOccurrence } from "../shared/recurrence.ts";
+import { fmtDate, nextOccurrence, parseDate } from "../shared/recurrence.ts";
+import type { Report, ReportTask } from "../shared/report.ts";
 
 export class NotFoundError extends Error {}
 export class ConflictError extends Error {}
@@ -37,7 +38,7 @@ const toProject = (r: Row): Project => ({
 });
 
 const toColumn = (r: Row): Column => ({
-  id: r.id, name: r.name, color: r.color, position: r.position, isDone: !!r.is_done, wipLimit: r.wip_limit,
+  id: r.id, name: r.name, color: r.color, position: r.position, isDone: !!r.is_done, isActive: !!r.is_active, wipLimit: r.wip_limit,
 });
 
 const toTask = (r: Row): Task => ({
@@ -45,6 +46,7 @@ const toTask = (r: Row): Task => ({
   description: r.description, priority: r.priority, dueDate: r.due_date, position: r.position,
   tagIds: r.tag_ids ? String(r.tag_ids).split(",").map(Number) : [],
   recurrence: r.recurrence ? JSON.parse(r.recurrence) : null, nextKey: r.next_key ?? null,
+  blockedReason: r.blocked_reason ?? null, blockedAt: r.blocked_at ?? null,
   subtasksDone: r.st_done ?? 0, subtasksTotal: r.st_total ?? 0, notesCount: r.notes_count ?? 0,
   lastActor: r.last_actor, createdAt: r.created_at, updatedAt: r.updated_at,
   completedAt: r.completed_at, archivedAt: r.archived_at,
@@ -94,6 +96,8 @@ export interface TaskPatch {
   tagIds?: number[];
   tags?: string[];
   recurrence?: Recurrence | null;
+  /** A reason marks the task blocked; null clears it. */
+  blocked?: string | null;
 }
 
 export interface MoveInput {
@@ -389,7 +393,84 @@ export class Repo {
       .prepare(`SELECT count(*) AS n FROM tasks t JOIN columns c ON c.id = t.column_id
         WHERE t.archived_at IS NULL AND c.is_done = 0 AND t.due_date < ?`)
       .get(today) as Row;
-    return { doneToday, doneThisWeek: week.reduce((a, b) => a + b, 0), week, overdue, claudeLastSeen: this.claudeSeenAt };
+    const { n: blocked } = this.db
+      .prepare(`SELECT count(*) AS n FROM tasks t JOIN columns c ON c.id = t.column_id
+        WHERE t.archived_at IS NULL AND c.is_done = 0 AND t.blocked_reason IS NOT NULL`)
+      .get() as Row;
+    return { doneToday, doneThisWeek: week.reduce((a, b) => a + b, 0), week, overdue, blocked, claudeLastSeen: this.claudeSeenAt };
+  }
+
+  /**
+   * Status report for [from, to] (local dates, inclusive): tasks completed in the period, plus what's
+   * in progress and blocked right now. Optionally limited to a project and its subprojects.
+   */
+  getReport(from: string, to: string, projectId?: number | null): Report {
+    this.assertDate(from);
+    this.assertDate(to);
+    if (from > to) throw new InvalidError("from must be on or before to");
+    if ((parseDate(to).getTime() - parseDate(from).getTime()) / 86_400_000 > 366) throw new InvalidError("Reports can cover at most a year");
+    const scope = projectId != null ? new Set(this.descendantIds(this.projectRow(projectId).id)) : null;
+    const projects = this.db.prepare("SELECT id, parent_id, name, color FROM projects").all() as Row[];
+    const byId = new Map(projects.map((p) => [p.id as number, p]));
+    const pathOf = (id: number) => {
+      const names: string[] = [];
+      for (let p = byId.get(id); p; p = p.parent_id != null ? byId.get(p.parent_id) : undefined) names.unshift(p.name);
+      return names;
+    };
+    const rootOf = (id: number) => {
+      let p = byId.get(id)!;
+      while (p.parent_id != null) p = byId.get(p.parent_id)!;
+      return p;
+    };
+    const start = parseDate(from).toISOString();
+    const endDate = parseDate(to);
+    const end = new Date(endDate.getFullYear(), endDate.getMonth(), endDate.getDate() + 1).toISOString();
+    const inScope = (r: Row) => !scope || scope.has(r.project_id);
+
+    const latestNote = this.db.prepare("SELECT body, actor, created_at FROM notes WHERE task_id = ? AND created_at >= ? AND created_at < ? ORDER BY created_at DESC, id DESC LIMIT 1");
+    const toReportTask = (r: Row, noteFrom = "", noteTo = "9999"): ReportTask => {
+      const n = latestNote.get(r.id, noteFrom, noteTo) as Row | undefined;
+      return {
+        key: r.key, title: r.title, projectPath: pathOf(r.project_id), projectColor: byId.get(r.project_id)?.color ?? "#94a3b8",
+        column: r.column_name, priority: r.priority, dueDate: r.due_date, completedAt: r.completed_at,
+        blockedReason: r.blocked_reason, blockedAt: r.blocked_at, subtasksDone: r.st_done ?? 0, subtasksTotal: r.st_total ?? 0,
+        note: n ? { body: n.body, actor: n.actor, createdAt: n.created_at } : null,
+      };
+    };
+    const select = `SELECT t.*, c.name AS column_name,
+        (SELECT count(*) FROM subtasks WHERE task_id = t.id) AS st_total,
+        (SELECT count(*) FROM subtasks WHERE task_id = t.id AND done = 1) AS st_done
+      FROM tasks t JOIN columns c ON c.id = t.column_id`;
+    const liveProject = "t.project_id NOT IN (SELECT id FROM projects WHERE archived_at IS NOT NULL)";
+
+    const completedRows = (this.db.prepare(`${select} WHERE t.completed_at >= ? AND t.completed_at < ? ORDER BY t.completed_at`).all(start, end) as Row[]).filter(inScope);
+    const activeRows = (this.db.prepare(`${select} WHERE t.archived_at IS NULL AND c.is_active = 1 AND c.is_done = 0 AND ${liveProject}
+        ORDER BY c.position, t.position`).all() as Row[]).filter(inScope);
+    const blockedRows = (this.db.prepare(`${select} WHERE t.archived_at IS NULL AND c.is_done = 0 AND t.blocked_reason IS NOT NULL AND ${liveProject}
+        ORDER BY t.blocked_at`).all() as Row[]).filter(inScope);
+    const createdCount = (this.db.prepare("SELECT project_id FROM tasks WHERE created_at >= ? AND created_at < ?").all(start, end) as Row[]).filter(inScope).length;
+
+    const days: string[] = [];
+    for (let day = parseDate(from); fmtDate(day) <= to; day = new Date(day.getFullYear(), day.getMonth(), day.getDate() + 1)) days.push(fmtDate(day));
+    const perDay = days.map((date) => {
+      const counts = new Map<number, number>();
+      for (const r of completedRows) {
+        if (fmtDate(new Date(r.completed_at)) !== date) continue;
+        const root = rootOf(r.project_id);
+        counts.set(root.id, (counts.get(root.id) ?? 0) + 1);
+      }
+      return { date, byProject: [...counts].map(([id, count]) => ({ name: byId.get(id)!.name, color: byId.get(id)!.color, count })) };
+    });
+
+    return {
+      from, to, generatedAt: this.now(),
+      project: projectId != null ? pathOf(projectId).join(" › ") : null,
+      completed: completedRows.map((r) => toReportTask(r, start, end)),
+      inProgress: activeRows.map((r) => toReportTask(r)),
+      blocked: blockedRows.map((r) => toReportTask(r)),
+      createdCount,
+      perDay,
+    };
   }
 
   exportAll() {
@@ -492,17 +573,17 @@ export class Repo {
 
   // ---------- columns ----------
 
-  createColumn(ctx: Ctx, input: { name: string; color?: string; isDone?: boolean; wipLimit?: number | null }): Column {
+  createColumn(ctx: Ctx, input: { name: string; color?: string; isDone?: boolean; isActive?: boolean; wipLimit?: number | null }): Column {
     if (!input.name.trim()) throw new InvalidError("Column name is required");
     const { p } = this.db.prepare("SELECT max(position) AS p FROM columns").get() as Row;
     const id = Number(this.db
-      .prepare("INSERT INTO columns (name, color, position, is_done, wip_limit, created_at) VALUES (?, ?, ?, ?, ?, ?)")
-      .run(input.name.trim(), input.color ?? "#94a3b8", (p ?? 0) + STEP, input.isDone ? 1 : 0, input.wipLimit ?? null, this.now()).lastInsertRowid);
+      .prepare("INSERT INTO columns (name, color, position, is_done, is_active, wip_limit, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)")
+      .run(input.name.trim(), input.color ?? "#94a3b8", (p ?? 0) + STEP, input.isDone ? 1 : 0, input.isActive ? 1 : 0, input.wipLimit ?? null, this.now()).lastInsertRowid);
     this.emit(ctx, "column", `Added column ${input.name}`);
     return toColumn(this.columnRow(id));
   }
 
-  updateColumn(ctx: Ctx, id: number, patch: { name?: string; color?: string; isDone?: boolean; wipLimit?: number | null }): Column {
+  updateColumn(ctx: Ctx, id: number, patch: { name?: string; color?: string; isDone?: boolean; isActive?: boolean; wipLimit?: number | null }): Column {
     const cur = this.columnRow(id);
     const sets: Record<string, unknown> = {};
     if (patch.name !== undefined) {
@@ -511,6 +592,7 @@ export class Repo {
     }
     if (patch.color !== undefined) sets.color = patch.color;
     if (patch.isDone !== undefined) sets.is_done = patch.isDone ? 1 : 0;
+    if (patch.isActive !== undefined) sets.is_active = patch.isActive ? 1 : 0;
     if (patch.wipLimit !== undefined) sets.wip_limit = patch.wipLimit;
     const cols = Object.keys(sets);
     if (cols.length) {
@@ -595,6 +677,7 @@ export class Repo {
       const cur = this.taskRow(key);
       const sets: Record<string, unknown> = {};
       const changes: Record<string, unknown> = {};
+      let blockChange: "blocked" | "unblocked" | null = null;
       if (patch.title !== undefined && patch.title.trim() !== cur.title) {
         if (!patch.title.trim()) throw new InvalidError("Task title is required");
         sets.title = patch.title.trim();
@@ -619,6 +702,14 @@ export class Repo {
           changes.recurrence = [cur.recurrence ? JSON.parse(cur.recurrence) : null, patch.recurrence];
         }
       }
+      if (patch.blocked !== undefined) {
+        const reason = patch.blocked?.trim() || null;
+        if (reason !== cur.blocked_reason) {
+          sets.blocked_reason = reason;
+          sets.blocked_at = reason ? (cur.blocked_reason ? cur.blocked_at : this.now()) : null;
+          blockChange = reason ? "blocked" : "unblocked";
+        }
+      }
       if (patch.projectId !== undefined && patch.projectId !== cur.project_id) {
         const from = this.projectRow(cur.project_id);
         const to = this.projectRow(patch.projectId);
@@ -638,10 +729,12 @@ export class Repo {
           changes.tags = true;
         }
       }
-      if (Object.keys(changes).length) {
+      if (Object.keys(changes).length || blockChange) {
         this.touch(ctx, cur.id);
-        this.log(ctx, "updated", { ...cur, title: sets.title ?? cur.title }, changes);
-        this.emit(ctx, "task", `Updated ${cur.key}`, cur.key);
+        const row = { ...cur, title: sets.title ?? cur.title };
+        if (Object.keys(changes).length) this.log(ctx, "updated", row, changes);
+        if (blockChange) this.log(ctx, blockChange, row, blockChange === "blocked" ? { reason: sets.blocked_reason } : { reason: cur.blocked_reason });
+        this.emit(ctx, "task", blockChange === "blocked" ? `${cur.key} is blocked` : blockChange === "unblocked" ? `Unblocked ${cur.key}` : `Updated ${cur.key}`, cur.key);
       }
       return this.getTask(cur.key);
     })();
@@ -662,6 +755,10 @@ export class Repo {
         this.touch(ctx, cur.id);
         const type = to.is_done && !from.is_done ? "completed" : !to.is_done && from.is_done ? "reopened" : "moved";
         this.log(ctx, type, cur, { from: from.name, to: to.name });
+        if (type === "completed" && cur.blocked_reason) {
+          this.db.prepare("UPDATE tasks SET blocked_reason = NULL, blocked_at = NULL WHERE id = ?").run(cur.id);
+          this.log(ctx, "unblocked", cur, { reason: cur.blocked_reason, onComplete: true });
+        }
         const spawned = type === "completed" ? this.spawnNextOccurrence(ctx, cur) : null;
         this.emit(ctx, "task", `Moved ${cur.key} to ${to.name}${spawned ? ` · next: ${spawned}` : ""}`, cur.key);
       } else {

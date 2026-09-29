@@ -99,4 +99,11 @@ export const migrations: string[] = [
   -- Key of the occurrence spawned when this task was completed, so it's only created once.
   ALTER TABLE tasks ADD COLUMN next_key TEXT;
   `,
+  /* 003 — blockers and "in progress" columns (for reports) */ `
+  ALTER TABLE tasks ADD COLUMN blocked_reason TEXT;
+  ALTER TABLE tasks ADD COLUMN blocked_at TEXT;
+  ALTER TABLE columns ADD COLUMN is_active INTEGER NOT NULL DEFAULT 0;
+  UPDATE columns SET is_active = 1
+    WHERE is_done = 0 AND (lower(name) LIKE '%progress%' OR lower(name) LIKE '%review%' OR lower(name) LIKE '%doing%');
+  `,
 ];

@@ -3,7 +3,7 @@ import type { Board, Priority, Stats, Task } from "@shared/types";
 import { api, ApiError } from "./api";
 import { descendantIds, inDays, today } from "./util";
 
-export type View = "board" | "archive" | "activity";
+export type View = "board" | "archive" | "activity" | "reports";
 export type ThemePref = "night" | "dawn" | "auto";
 export type DueFilter = "any" | "overdue" | "today" | "week" | "none";
 
@@ -27,6 +27,7 @@ interface State {
   priorities: Priority[];
   due: DueFilter;
   tagFilter: number[];
+  blockedOnly: boolean;
   openTask: string | null;
   newTask: { columnId?: number } | null;
   projectDialog: ProjectDialog;
@@ -75,6 +76,7 @@ export const useStore = create<State>((set, get) => ({
   priorities: [],
   due: "any",
   tagFilter: [],
+  blockedOnly: false,
   openTask: null,
   newTask: null,
   projectDialog: null,
@@ -150,12 +152,12 @@ export const useStore = create<State>((set, get) => ({
     await get().run(() => api.moveTask(key, { columnId, afterKey, beforeKey }));
   },
 
-  clearFilters: () => set({ search: "", priorities: [], due: "any", tagFilter: [] }),
+  clearFilters: () => set({ search: "", priorities: [], due: "any", tagFilter: [], blockedOnly: false }),
 }));
 
 /** Tasks visible under the current project, search, priority, due and tag filters. */
 export function useVisibleTasks(): Task[] {
-  const { board, projectFilter, search, priorities, due, tagFilter } = useStore();
+  const { board, projectFilter, search, priorities, due, tagFilter, blockedOnly } = useStore();
   if (!board) return [];
   const inProject = projectFilter != null ? descendantIds(board.projects, projectFilter) : null;
   const q = search.trim().toLowerCase();
@@ -165,6 +167,7 @@ export function useVisibleTasks(): Task[] {
     if (inProject && !inProject.has(t.projectId)) return false;
     if (q && !t.title.toLowerCase().includes(q) && !t.key.toLowerCase().includes(q) && !t.description.toLowerCase().includes(q)) return false;
     if (priorities.length && !priorities.includes(t.priority)) return false;
+    if (blockedOnly && !t.blockedReason) return false;
     if (tagFilter.length && !tagFilter.some((id) => t.tagIds.includes(id))) return false;
     if (due === "none" && t.dueDate) return false;
     if (due !== "any" && due !== "none") {
@@ -177,5 +180,5 @@ export function useVisibleTasks(): Task[] {
   });
 }
 
-export const filtersActive = (s: Pick<State, "search" | "priorities" | "due" | "tagFilter">) =>
-  !!s.search.trim() || s.priorities.length > 0 || s.due !== "any" || s.tagFilter.length > 0;
+export const filtersActive = (s: Pick<State, "search" | "priorities" | "due" | "tagFilter" | "blockedOnly">) =>
+  !!s.search.trim() || s.priorities.length > 0 || s.due !== "any" || s.tagFilter.length > 0 || s.blockedOnly;

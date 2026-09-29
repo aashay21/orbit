@@ -13,6 +13,7 @@ import { Sidebar } from "./components/Sidebar";
 import { Sky } from "./components/Sky";
 import { TaskPanel } from "./components/TaskPanel";
 import { ActivityView, ArchiveView, Toasts } from "./components/Views";
+import { ReportsView } from "./components/ReportsView";
 import { Icon } from "./components/Icon";
 
 /** Keeps the board in sync with changes made elsewhere (other tabs, Claude Code). */
@@ -51,7 +52,7 @@ function useShortcuts() {
       }
       const busy = s.paletteOpen || s.newTask || s.projectDialog || s.openTask;
       if (e.ctrlKey || e.metaKey || e.altKey || isTyping(e.target) || busy) return;
-      const go = (view: "board" | "activity") => { s.set({ view }); remember("orbit.view", view); };
+      const go = (view: "board" | "activity" | "reports") => { s.set({ view }); remember("orbit.view", view); };
       switch (e.key) {
         case "n": if (s.board?.projects.some((p) => !p.archivedAt)) { e.preventDefault(); s.set({ newTask: {} }); } break;
         case "p": e.preventDefault(); s.set({ projectDialog: { mode: "create" } }); break;
@@ -59,6 +60,7 @@ function useShortcuts() {
         case "t": cycleTheme(); break;
         case "b": go("board"); break;
         case "a": go("activity"); break;
+        case "r": go("reports"); break;
       }
     };
     window.addEventListener("keydown", onKey);
@@ -105,6 +107,7 @@ export function App() {
               {view === "board" && (board.projects.length === 0 ? <EmptySky /> : <><BoardHeader /><Toolbar /><Board /></>)}
               {view === "activity" && <ActivityView />}
               {view === "archive" && <ArchiveView />}
+              {view === "reports" && <ReportsView />}
           </motion.div>
         )}
       </main>

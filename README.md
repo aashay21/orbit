@@ -12,7 +12,9 @@ Everything runs on your machine at `http://127.0.0.1:4700`, and data lives in on
 - **Smooth drag-and-drop** between and within columns. Keyboard dragging also works.
 - **Per-task fields:** priority, optional due date, tags, Markdown description, subtasks, notes and full history.
 - **Recurring tasks:** daily, weekdays, weekly on chosen days, every N days/weeks/months, monthly or yearly, with an optional end date. Completing one creates the next occurrence (new ID, next due date, subtasks reset). The completed task stays in Done for reports.
-- **Search and filters** by text, priority, due date and tags.
+- **Blockers:** mark a task blocked with what it's waiting on. It gets a red glow and a "Blocked" filter, and the blocker clears automatically when the task is completed.
+- **Reports** for a day, a week (you choose which weekday the week ends on, e.g. Thu–Wed) or any custom range. They show what was completed, what's in progress and what's blocked, grouped by project and optionally for one project only, with a per-day chart. Use *Copy for Teams / email* (formatted), *Copy Markdown* or download a `.md` file.
+- **Search and filters** by text, priority, due date, tags and blocked status.
 - **Archive** for finished work. Restore anything later.
 - **Activity feed** of every change, including who made it (you or Claude).
 - **Live updates:** changes from other tabs or Claude Code appear instantly.
@@ -20,7 +22,7 @@ Everything runs on your machine at `http://127.0.0.1:4700`, and data lives in on
 - **Command palette** (`Ctrl K`) and keyboard shortcuts.
 - **Claude Code integration** through an MCP server (see below). Claude's changes appear live, are marked with a spark, and the sidebar shows when Claude Code is active.
 
-Coming next: daily and weekly reports (phase 3), then email and Teams notifications (phase 4).
+Coming next: email and Teams notifications (phase 4).
 
 ## Claude Code
 
@@ -39,10 +41,12 @@ Then ask Claude things like:
 - "I'm starting INF-12", "Add a note to INF-12 that the pipeline is fixed", "INF-12 is done"
 - "Make ACM-4 repeat every Monday"
 - "What did I finish today?"
+- "ACM-2 is blocked waiting on the client's DR requirements"
+- "Give me my weekly update" / "…for Acme Client, week ending Wednesday" / "…from last Wednesday to today"
 
 Tools: `board_overview`, `list_projects`, `list_tasks`, `get_task`, `create_task`, `update_task`,
 `move_task`, `complete_task`, `add_note`, `add_subtasks`, `update_subtask`, `archive_task`,
-`create_project` and `recent_activity`. There is deliberately no delete tool: Claude can archive
+`create_project`, `recent_activity` and `get_report`. There is deliberately no delete tool: Claude can archive
 tasks, but only you delete them. Projects can be named by name, path (`Acme Client/Landing Zone`),
 prefix (`ACM`) or id; dates accept `today`, `friday`, `+3d` or `YYYY-MM-DD`.
 
@@ -91,7 +95,7 @@ loginctl enable-linger "$USER"
 | `N` | New task |
 | `P` | New project |
 | `/` | Search |
-| `B` / `A` | Board / Activity |
+| `B` / `R` / `A` | Board / Reports / Activity |
 | `T` | Cycle theme (Night → Dawn → Auto) |
 | `Esc` | Close panel or dialog |
 | `Enter` on a focused card | Open it |
@@ -131,11 +135,12 @@ Every mutation takes an optional `x-orbit-actor: claude` header, so history show
 GET    /api/board                  columns, projects, tags, open tasks
 GET    /api/stats                  done today / this week / overdue
 GET    /api/activity?limit=&before=
+GET    /api/report?from=&to=&projectId=&format=json|md|html&notes=0
 POST   /api/projects               {name, parentId?, key?, color?}
 PATCH  /api/projects/:id           {..., archived?}
 POST   /api/tasks                  {title, projectId, columnId?, priority?, dueDate?, tags?, subtasks?, recurrence?}
 GET    /api/tasks/:key             task + subtasks, notes, history
-PATCH  /api/tasks/:key             {title?, description?, priority?, dueDate?, projectId?, tags?, recurrence?}
+PATCH  /api/tasks/:key             {title?, description?, priority?, dueDate?, projectId?, tags?, recurrence?, blocked?}
 POST   /api/tasks/:key/move        {columnId, afterKey?, beforeKey?}
 POST   /api/tasks/:key/notes       {body}
 POST   /api/tasks/:key/archive | /restore

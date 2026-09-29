@@ -7,6 +7,7 @@ import { Icon } from "./Icon";
 
 const NAV: { view: View; icon: string; label: string; key: string }[] = [
   { view: "board", icon: "board", label: "Board", key: "B" },
+  { view: "reports", icon: "report", label: "Reports", key: "R" },
   { view: "activity", icon: "activity", label: "Activity", key: "A" },
   { view: "archive", icon: "archive", label: "Archive", key: "" },
 ];
@@ -85,7 +86,6 @@ export function Sidebar() {
             <Icon name={n.icon} />{n.label}{n.key && <span className="k">{n.key}</span>}
           </button>
         ))}
-        <button disabled title="Coming in phase 3"><Icon name="report" />Reports<span className="k soon">soon</span></button>
       </nav>
 
       <div className="side-projects">

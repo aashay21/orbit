@@ -26,7 +26,7 @@ export const CardBody = memo(function CardBody({ task, project, projects, tags, 
   const hasMeta = due || task.recurrence || task.subtasksTotal > 0 || taskTags.length > 0 || task.lastActor === "claude" || task.notesCount > 0;
 
   return (
-    <article className={cx("card", done && "done", lifted && "lifted")} style={{ ["--acc" as string]: acc }}>
+    <article className={cx("card", done && "done", lifted && "lifted", task.blockedReason && !done && "blocked")} style={{ ["--acc" as string]: acc }}>
       <div className="r1">
         <span className="tid">{task.key}</span>
         {done ? (
@@ -39,6 +39,7 @@ export const CardBody = memo(function CardBody({ task, project, projects, tags, 
         ) : null}
       </div>
       <h4>{task.title}</h4>
+      {task.blockedReason && !done && <div className="blocked-line" title={task.blockedReason}><Icon name="block" size={12} /><span>{task.blockedReason}</span></div>}
       <div className="path">
         <i />
         {path.map((p, i) => <span key={i}>{i > 0 && <b> › </b>}{p}</span>)}

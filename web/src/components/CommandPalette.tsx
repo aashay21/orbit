@@ -27,6 +27,7 @@ export function CommandPalette() {
                   {board.projects.length > 0 && <Command.Item onSelect={act(() => set({ newTask: {} }))}><Icon name="plus" />New task<kbd>N</kbd></Command.Item>}
                   <Command.Item onSelect={act(() => set({ projectDialog: { mode: "create" } }))}><Icon name="folder" />New project</Command.Item>
                   <Command.Item onSelect={act(() => { set({ view: "board" }); remember("orbit.view", "board"); })}><Icon name="board" />Go to board<kbd>B</kbd></Command.Item>
+                  <Command.Item onSelect={act(() => { set({ view: "reports" }); remember("orbit.view", "reports"); })}><Icon name="report" />Go to reports<kbd>R</kbd></Command.Item>
                   <Command.Item onSelect={act(() => { set({ view: "activity" }); remember("orbit.view", "activity"); })}><Icon name="activity" />Go to activity<kbd>A</kbd></Command.Item>
                   <Command.Item onSelect={act(() => { set({ view: "archive" }); remember("orbit.view", "archive"); })}><Icon name="archive" />Go to archive</Command.Item>
                   <Command.Item onSelect={act(() => setTheme("night"))}><Icon name="moon" />Theme: Night</Command.Item>

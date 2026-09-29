@@ -1,4 +1,5 @@
 import type { Activity, Board, Column, Priority, Project, Recurrence, Stats, Tag, Task, TaskDetail } from "@shared/types";
+import type { Report } from "@shared/report";
 
 /** Identifies this tab so it can ignore live-update echoes of its own changes. */
 export const clientId = crypto.randomUUID();
@@ -43,7 +44,7 @@ export interface TaskInput {
   placement?: "top" | "bottom";
 }
 
-export type TaskPatch = Partial<Omit<TaskInput, "columnId" | "placement">>;
+export type TaskPatch = Partial<Omit<TaskInput, "columnId" | "placement">> & { blocked?: string | null };
 
 export const api = {
   board: () => request<Board>("GET", "/board"),
@@ -55,11 +56,13 @@ export const api = {
   deleteProject: (id: number) => request<void>("DELETE", `/projects/${id}`),
 
   createColumn: (c: { name: string; color?: string }) => request<Column>("POST", "/columns", c),
-  updateColumn: (id: number, c: Partial<Pick<Column, "name" | "color" | "isDone" | "wipLimit">> & { shift?: -1 | 1 }) =>
+  updateColumn: (id: number, c: Partial<Pick<Column, "name" | "color" | "isDone" | "isActive" | "wipLimit">> & { shift?: -1 | 1 }) =>
     request<Column>("PATCH", `/columns/${id}`, c),
   deleteColumn: (id: number, moveTo?: number) => request<void>("DELETE", `/columns/${id}${moveTo ? `?moveTo=${moveTo}` : ""}`),
   archiveColumn: (id: number) => request<{ archived: number }>("POST", `/columns/${id}/archive`),
 
+  report: (from: string, to: string, projectId: number | null) =>
+    request<Report>("GET", `/report?from=${from}&to=${to}${projectId != null ? `&projectId=${projectId}` : ""}`),
   archivedTasks: () => request<Task[]>("GET", "/tasks?archived=1"),
   task: (key: string) => request<TaskDetail>("GET", `/tasks/${encodeURIComponent(key)}`),
   createTask: (t: TaskInput) => request<TaskDetail>("POST", "/tasks", t),

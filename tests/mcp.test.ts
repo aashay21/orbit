@@ -9,6 +9,8 @@ import { OrbitClient } from "../mcp/client.ts";
 import { registerTools } from "../mcp/tools.ts";
 import { parseDue, parseRecurrence } from "../mcp/resolve.ts";
 import type { Board } from "../shared/types.ts";
+import { fmtDate } from "../shared/recurrence.ts";
+import { reportTitle } from "../shared/report.ts";
 
 let repo: Repo;
 let client: Client;
@@ -36,7 +38,7 @@ describe("MCP tools", () => {
     const { tools } = await client.listTools();
     expect(tools.map((t) => t.name).sort()).toEqual([
       "add_note", "add_subtasks", "archive_task", "board_overview", "complete_task", "create_project", "create_task",
-      "get_task", "list_projects", "list_tasks", "move_task", "recent_activity", "update_subtask", "update_task",
+      "get_report", "get_task", "list_projects", "list_tasks", "move_task", "recent_activity", "update_subtask", "update_task",
     ]);
   });
 
@@ -82,6 +84,40 @@ describe("MCP tools", () => {
     await call("create_task", { title: "Water plants", project: "Home", due_date: "today", repeat: "every 2 days" });
     const res = await call("complete_task", { key: "HOM-1" });
     expect(res.text).toMatch(/Completed HOM-1 \(Done\)\. Next occurrence: HOM-2 · Water plants · Backlog · due .* \(in 2d\)/);
+  });
+
+  it("tracks blockers and produces reports for weeks ending on any day or custom ranges", async () => {
+    await call("create_project", { name: "Acme" });
+    await call("create_task", { title: "SOW questions", project: "Acme", column: "In Progress" });
+    await call("update_task", { key: "ACM-1", blocked: "Waiting on client" });
+    expect((await call("list_tasks", { blocked: true })).text).toContain("BLOCKED: Waiting on client");
+    expect((await call("board_overview")).text).toContain("Blocked:\n  ACM-1");
+    await call("create_task", { title: "Kickoff deck", project: "Acme" });
+    await call("complete_task", { key: "ACM-2" });
+
+    const week = (await call("get_report", {})).text;
+    expect(week).toMatch(/^## Weekly update · /);
+    expect(week).toContain("**1 task completed · 1 in progress · 1 blocker**");
+    expect(week).toContain("- ACM-1 SOW questions _(Acme)_ — **Waiting on client** (since today)");
+
+    // Week ending Wednesday: the Thu–Wed window containing today.
+    const now = new Date();
+    const at = (n: number) => fmtDate(new Date(now.getFullYear(), now.getMonth(), now.getDate() + n));
+    const endOffset = (3 - now.getDay() + 7) % 7;
+    const empty = { generatedAt: "", project: null, completed: [], inProgress: [], blocked: [], createdCount: 0, perDay: [] };
+    const wed = (await call("get_report", { week_ends_on: "wednesday" })).text;
+    expect(wed.split("\n")[0]).toBe(`## ${reportTitle({ ...empty, from: at(endOffset - 6), to: at(endOffset) })}`);
+    const lastWed = (await call("get_report", { week_ends_on: "wed", period: "last_week" })).text;
+    expect(lastWed.split("\n")[0]).toBe(`## ${reportTitle({ ...empty, from: at(endOffset - 13), to: at(endOffset - 7) })}`);
+
+    // "From last Wednesday to today", both ends included.
+    const since = -(((now.getDay() - 3 + 7) % 7) || 7);
+    const range = (await call("get_report", { period: "range", from: "wednesday" })).text;
+    expect(range.split("\n")[0]).toBe(`## ${reportTitle({ ...empty, from: at(since), to: at(0) })}`);
+    expect((await call("get_report", { period: "today", project: "Acme", notes: false })).text).toMatch(/^## Acme · Daily update/);
+
+    await call("update_task", { key: "ACM-1", blocked: null });
+    expect((await call("list_tasks", { blocked: true })).text).toBe("No matching tasks.");
   });
 
   it("returns helpful errors instead of failing", async () => {

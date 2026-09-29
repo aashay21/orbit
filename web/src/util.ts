@@ -92,3 +92,34 @@ export const isTyping = (el: EventTarget | null) =>
   el instanceof HTMLElement && (el.isContentEditable || ["INPUT", "TEXTAREA", "SELECT"].includes(el.tagName));
 
 export const cx = (...c: (string | false | null | undefined)[]) => c.filter(Boolean).join(" ");
+
+/**
+ * A project's colour for chart marks: same hue (and chroma, capped) at a fixed OKLCH lightness,
+ * so bars sit in the validated band for each theme (L 0.64 on Night, 0.62 on Dawn) while still
+ * reading as "that project".
+ */
+export function chartColor(hex: string, lightness: number): string {
+  const s2l = (c: number) => (c /= 255) <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+  const l2s = (c: number) => {
+    const v = c <= 0.0031308 ? c * 12.92 : 1.055 * Math.max(0, c) ** (1 / 2.4) - 0.055;
+    return Math.round(Math.min(1, Math.max(0, v)) * 255);
+  };
+  const [r, g, b] = [1, 3, 5].map((i) => s2l(parseInt(hex.slice(i, i + 2), 16)));
+  const l = Math.cbrt(0.4122214708 * r + 0.5363325363 * g + 0.0514459929 * b);
+  const m = Math.cbrt(0.2119034982 * r + 0.6806995451 * g + 0.1073969566 * b);
+  const s = Math.cbrt(0.0883024619 * r + 0.2817188376 * g + 0.6299787005 * b);
+  const A = 1.9779984951 * l - 2.428592205 * m + 0.4505937099 * s;
+  const B = 0.0259040371 * l + 0.7827717662 * m - 0.808675766 * s;
+  const C = Math.min(Math.hypot(A, B), 0.16);
+  const H = Math.atan2(B, A);
+  const a2 = C * Math.cos(H), b2 = C * Math.sin(H), L = lightness;
+  const l3 = (L + 0.3963377774 * a2 + 0.2158037573 * b2) ** 3;
+  const m3 = (L - 0.1055613458 * a2 - 0.0638541728 * b2) ** 3;
+  const s3 = (L - 0.0894841775 * a2 - 1.291485548 * b2) ** 3;
+  const out = [
+    4.0767416621 * l3 - 3.3077115913 * m3 + 0.2309699292 * s3,
+    -1.2684380046 * l3 + 2.6097574011 * m3 - 0.3413193965 * s3,
+    -0.0041960863 * l3 - 0.7034186147 * m3 + 1.707614701 * s3,
+  ];
+  return `#${out.map((c) => l2s(c).toString(16).padStart(2, "0")).join("")}`;
+}

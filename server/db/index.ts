@@ -6,11 +6,11 @@ import { migrations } from "./migrations.ts";
 export type DB = Database.Database;
 
 export const DEFAULT_COLUMNS = [
-  { name: "Backlog", color: "#8b8fd6", isDone: false },
-  { name: "To Do", color: "#38bdf8", isDone: false },
-  { name: "In Progress", color: "#a78bfa", isDone: false },
-  { name: "Review", color: "#e879f9", isDone: false },
-  { name: "Done", color: "#34d399", isDone: true },
+  { name: "Backlog", color: "#8b8fd6", isDone: false, isActive: false },
+  { name: "To Do", color: "#38bdf8", isDone: false, isActive: false },
+  { name: "In Progress", color: "#a78bfa", isDone: false, isActive: true },
+  { name: "Review", color: "#e879f9", isDone: false, isActive: true },
+  { name: "Done", color: "#34d399", isDone: true, isActive: false },
 ];
 
 /** Opens (or creates) the database, applies pending migrations and seeds default columns. */
@@ -38,10 +38,10 @@ function seedColumns(db: DB) {
   const { n } = db.prepare("SELECT count(*) AS n FROM columns").get() as { n: number };
   if (n > 0) return;
   const insert = db.prepare(
-    "INSERT INTO columns (name, color, position, is_done, created_at) VALUES (?, ?, ?, ?, ?)",
+    "INSERT INTO columns (name, color, position, is_done, is_active, created_at) VALUES (?, ?, ?, ?, ?, ?)",
   );
   const now = new Date().toISOString();
-  DEFAULT_COLUMNS.forEach((c, i) => insert.run(c.name, c.color, (i + 1) * 1024, c.isDone ? 1 : 0, now));
+  DEFAULT_COLUMNS.forEach((c, i) => insert.run(c.name, c.color, (i + 1) * 1024, c.isDone ? 1 : 0, c.isActive ? 1 : 0, now));
 }
 
 /**

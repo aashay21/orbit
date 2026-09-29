@@ -85,6 +85,8 @@ function PanelContent({ taskKey, onClose }: { taskKey: string; onClose(): void }
 
       <TitleEditor value={task.title} onSave={(title) => patch({ title })} />
 
+      <BlockerEditor reason={task.blockedReason} since={task.blockedAt} done={!!column?.isDone} onChange={(blocked) => patch({ blocked })} />
+
       <div className="status-row">
         {board.columns.map((c) => (
           <button key={c.id} className={cx("status", c.id === task.columnId && "on")} style={{ ["--c" as string]: c.color }}
@@ -184,6 +186,8 @@ export function describe(a: Activity): string {
     case "created": return d.recurredFrom ? `Repeated from ${d.recurredFrom} into ${d.column}` : `${who} created this in ${d.column}`;
     case "recurred": return `${who} completed it, so ${d.nextKey} was scheduled for ${format(parseISO(d.dueDate), "EEE d MMM")}`;
     case "recurrence_ended": return "Its repeat series ended with this one";
+    case "blocked": return `${who} marked it blocked: “${d.reason}”`;
+    case "unblocked": return d.onComplete ? "Blocker cleared on completion" : `${who} unblocked it`;
     case "moved": return `${who} moved it from ${d.from} to ${d.to}`;
     case "completed": return `${who} completed it (${d.from} → ${d.to})`;
     case "reopened": return `${who} reopened it (${d.from} → ${d.to})`;
@@ -207,6 +211,38 @@ export function describe(a: Activity): string {
     }
     default: return `${who} ${a.type.replace(/_/g, " ")}`;
   }
+}
+
+/** Red banner while blocked (edit reason / unblock); otherwise a quiet "Mark as blocked" button. */
+function BlockerEditor({ reason, since, done, onChange }: { reason: string | null; since: string | null; done: boolean; onChange(r: string | null): void }) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(reason ?? "");
+  useEffect(() => { if (!editing) setDraft(reason ?? ""); }, [reason, editing]);
+  if (done && !reason) return null;
+  if (editing) {
+    return (
+      <form className="blocker editing" onSubmit={(e) => { e.preventDefault(); setEditing(false); if (draft.trim()) onChange(draft.trim()); }}>
+        <Icon name="block" size={15} />
+        <input autoFocus value={draft} maxLength={500} placeholder="What is it waiting on?" onChange={(e) => setDraft(e.target.value)}
+          onKeyDown={(e) => { if (e.key === "Escape") { e.preventDefault(); setEditing(false); } }} />
+        <button type="submit" className="btn primary danger-fill" disabled={!draft.trim()}>{reason ? "Save" : "Mark blocked"}</button>
+      </form>
+    );
+  }
+  if (!reason) {
+    return <button className="mark-blocked" onClick={() => setEditing(true)}><Icon name="block" size={14} />Mark as blocked</button>;
+  }
+  return (
+    <div className="blocker">
+      <Icon name="block" size={16} />
+      <div className="blocker-text">
+        <b>Blocked{since ? ` · ${relativeTime(since)}` : ""}</b>
+        <span>{reason}</span>
+      </div>
+      <button className="btn ghost" onClick={() => setEditing(true)}>Edit</button>
+      <button className="btn" onClick={() => onChange(null)}>Unblock</button>
+    </div>
+  );
 }
 
 function Section({ title, aside, children }: { title: string; aside?: string; children: ReactNode }) {

@@ -28,6 +28,8 @@ export interface Column {
   position: number;
   /** Tasks in a "done" column count as completed for reports and stats. */
   isDone: boolean;
+  /** Tasks here count as "in progress" in reports. */
+  isActive: boolean;
   wipLimit: number | null;
 }
 
@@ -52,6 +54,9 @@ export interface Task {
   recurrence: Recurrence | null;
   /** For a completed recurring task: the key of the occurrence it spawned. */
   nextKey: string | null;
+  /** Set while the task is blocked: what it's waiting on. */
+  blockedReason: string | null;
+  blockedAt: string | null;
   subtasksDone: number;
   subtasksTotal: number;
   notesCount: number;
@@ -109,6 +114,7 @@ export interface Stats {
   /** Completed counts Monday..Sunday of the current week. */
   week: number[];
   overdue: number;
+  blocked: number;
   /** Last time Claude Code talked to Orbit (since the server started). */
   claudeLastSeen: string | null;
 }

@@ -77,7 +77,8 @@ export function ColumnView({ column, columns, droppableId, keys, taskByKey, proj
         <MenuItem icon="edit" onClick={() => { close(); setRenaming(true); }}>Rename</MenuItem>
         <MenuItem icon="eye" onClick={() => setMenu("color")}>Color</MenuItem>
         <MenuItem icon="filter" onClick={() => { close(); setWipEdit(true); }}>{column.wipLimit ? "Change WIP limit" : "Set WIP limit"}</MenuItem>
-        <MenuItem icon="check" active={column.isDone} onClick={() => { close(); void update({ isDone: !column.isDone }); }}>Counts as done</MenuItem>
+        <MenuItem icon="check" active={column.isDone} onClick={() => { close(); void update({ isDone: !column.isDone, ...(column.isDone ? {} : { isActive: false }) }); }}>Counts as done</MenuItem>
+        {!column.isDone && <MenuItem icon="activity" active={column.isActive} onClick={() => { close(); void update({ isActive: !column.isActive }); }}>Counts as in progress</MenuItem>}
         <div className="menu-sep" />
         {!first && <MenuItem icon="left" onClick={() => { close(); void update({ shift: -1 }); }}>Move left</MenuItem>}
         {!last && <MenuItem icon="right" onClick={() => { close(); void update({ shift: 1 }); }}>Move right</MenuItem>}
