@@ -1,0 +1,499 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Orbit Mockups</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600&family=Geist+Mono:wght@400;500&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: #15161c;
+    color: #d8d9e3;
+    font-family: "Geist", system-ui, sans-serif;
+    padding: 40px 32px 80px;
+  }
+  .page-head { max-width: 1500px; margin: 0 auto 28px; }
+  .page-head h1 { font-family: "Instrument Serif", serif; font-weight: 400; font-size: 44px; letter-spacing: -.01em; color: #f1f1f6; }
+  .page-head p { color: #8d8fa3; margin-top: 6px; font-size: 15px; }
+  .variant { max-width: 1500px; margin: 0 auto 56px; }
+  .scroller { overflow-x: auto; padding-bottom: 24px; }
+  .variant-label { display: flex; align-items: baseline; gap: 12px; margin-bottom: 14px; }
+  .variant-label b { font-family: "Geist Mono", monospace; font-weight: 500; font-size: 12px; color: #6f7189; letter-spacing: .12em; }
+  .variant-label span { font-family: "Instrument Serif", serif; font-size: 28px; color: #eceef6; }
+  .variant-label em { color: #7c7f96; font-style: normal; font-size: 14px; }
+
+  /* ---------- THEME TOKENS ---------- */
+  .app.night {
+    --bg: #05060d;
+    --panel: rgba(14, 16, 32, .55);
+    --panel-b: rgba(150, 160, 255, .09);
+    --col: rgba(255, 255, 255, .018);
+    --card: rgba(20, 23, 44, .72);
+    --card-b: rgba(255, 255, 255, .065);
+    --text: #e8eaff;
+    --muted: #8a8fba;
+    --faint: #555a82;
+    --hover: rgba(255, 255, 255, .045);
+    --glow: 42%;
+    --glow-soft: 18%;
+    --tint: 11%;
+    --shadow: rgba(0, 0, 0, .55);
+    --chip-mix: 72%;
+  }
+  .app.dawn {
+    --bg: #f5f2ed;
+    --panel: rgba(255, 255, 255, .5);
+    --panel-b: rgba(50, 45, 110, .08);
+    --col: rgba(255, 255, 255, .38);
+    --card: rgba(255, 255, 255, .86);
+    --card-b: rgba(40, 35, 100, .07);
+    --text: #1d1b3d;
+    --muted: #6b6889;
+    --faint: #a7a4bd;
+    --hover: rgba(40, 35, 100, .045);
+    --glow: 48%;
+    --glow-soft: 26%;
+    --tint: 9%;
+    --shadow: rgba(60, 50, 120, .14);
+    --chip-mix: 55%;
+  }
+
+  /* ---------- FRAME ---------- */
+  .app {
+    position: relative;
+    display: grid;
+    grid-template-columns: 236px 1fr;
+    height: 800px;
+    border-radius: 22px;
+    overflow: hidden;
+    background: var(--bg);
+    color: var(--text);
+    box-shadow: 0 40px 80px -30px rgba(0,0,0,.6), 0 0 0 1px rgba(255,255,255,.06);
+    isolation: isolate;
+    min-width: 1280px;
+  }
+  .sky { position: absolute; inset: 0; pointer-events: none; z-index: -1; overflow: hidden; }
+  .night .sky {
+    background:
+      radial-gradient(640px 420px at 78% 4%, rgba(124, 92, 255, .20), transparent 62%),
+      radial-gradient(520px 400px at 18% 96%, rgba(45, 212, 191, .12), transparent 60%),
+      radial-gradient(900px 520px at 55% 55%, rgba(56, 78, 170, .10), transparent 70%);
+  }
+  .dawn .sky {
+    background:
+      radial-gradient(640px 420px at 80% 0%, rgba(196, 181, 253, .55), transparent 62%),
+      radial-gradient(560px 400px at 8% 100%, rgba(153, 246, 228, .45), transparent 60%),
+      radial-gradient(620px 340px at 52% 62%, rgba(254, 215, 170, .38), transparent 70%);
+  }
+  .star {
+    position: absolute; border-radius: 50%; background: #fff;
+    animation: twinkle var(--d, 4s) ease-in-out infinite; animation-delay: var(--delay, 0s);
+  }
+  .mote {
+    position: absolute; border-radius: 50%;
+    background: radial-gradient(circle, rgba(255,255,255,.95), rgba(255,255,255,0) 70%);
+    animation: drift var(--d, 9s) ease-in-out infinite alternate; animation-delay: var(--delay, 0s);
+  }
+  @keyframes twinkle { 0%,100% { opacity: var(--o, .6); } 50% { opacity: .1; } }
+  @keyframes drift { from { transform: translate(0,0); opacity: .35; } to { transform: translate(14px,-18px); opacity: .9; } }
+
+  /* ---------- SIDEBAR ---------- */
+  .side {
+    display: flex; flex-direction: column; gap: 22px;
+    padding: 22px 14px 18px;
+    background: var(--panel);
+    border-right: 1px solid var(--panel-b);
+    backdrop-filter: blur(20px);
+  }
+  .logo { display: flex; align-items: center; gap: 11px; padding: 0 8px; }
+  .logo-orb {
+    width: 18px; height: 18px; border-radius: 50%;
+    background: radial-gradient(circle at 35% 30%, #fff 0 12%, #c4b5fd 30%, #7c5cff 62%, #2dd4bf 100%);
+    box-shadow: 0 0 18px rgba(124, 92, 255, .7), 0 0 40px rgba(45, 212, 191, .3);
+  }
+  .logo span { font-family: "Instrument Serif", serif; font-size: 27px; letter-spacing: -.01em; }
+  .nav { display: flex; flex-direction: column; gap: 2px; }
+  .nav a {
+    display: flex; align-items: center; gap: 10px;
+    padding: 8px 10px; border-radius: 10px;
+    color: var(--muted); font-size: 13.5px; text-decoration: none;
+  }
+  .nav a svg { width: 16px; height: 16px; stroke: currentColor; fill: none; stroke-width: 1.6; }
+  .nav a.active {
+    color: var(--text);
+    background: linear-gradient(90deg, color-mix(in oklab, #7c5cff 16%, transparent), transparent);
+    box-shadow: inset 2px 0 0 #a78bfa;
+  }
+  .nav a .k { margin-left: auto; font-family: "Geist Mono", monospace; font-size: 10.5px; color: var(--faint); }
+  .sec { font-family: "Geist Mono", monospace; font-size: 10.5px; letter-spacing: .14em; color: var(--faint); padding: 0 10px 8px; display: flex; justify-content: space-between; }
+  .tree { display: flex; flex-direction: column; gap: 1px; }
+  .proj { display: flex; align-items: center; gap: 10px; padding: 7px 10px; border-radius: 9px; font-size: 13.5px; }
+  .proj:hover { background: var(--hover); }
+  .dot {
+    width: 8px; height: 8px; border-radius: 50%; flex: none;
+    background: var(--acc);
+    box-shadow: 0 0 10px color-mix(in oklab, var(--acc) 80%, transparent);
+  }
+  .proj .n { margin-left: auto; font-family: "Geist Mono", monospace; font-size: 11px; color: var(--faint); }
+  .subs { margin: 0 0 6px 13px; padding-left: 12px; border-left: 1px dashed color-mix(in oklab, var(--acc) 40%, transparent); }
+  .sub { display: flex; align-items: center; gap: 9px; padding: 5px 8px; font-size: 12.8px; color: var(--muted); border-radius: 8px; }
+  .sub:hover { background: var(--hover); color: var(--text); }
+  .sub i { width: 6px; height: 6px; border-radius: 50%; border: 1.3px solid var(--acc); flex: none; }
+  .sub .n { margin-left: auto; font-family: "Geist Mono", monospace; font-size: 10.5px; color: var(--faint); }
+  .side-foot { margin-top: auto; display: flex; flex-direction: column; gap: 10px; }
+  .claude-status {
+    display: flex; align-items: center; gap: 10px;
+    padding: 10px 12px; border-radius: 12px;
+    border: 1px solid var(--panel-b); background: var(--col);
+    font-size: 12.5px; color: var(--muted);
+  }
+  .claude-status b { color: var(--text); font-weight: 500; display: block; font-size: 12.8px; }
+  .pulse { width: 8px; height: 8px; border-radius: 50%; background: #34d399; box-shadow: 0 0 0 0 rgba(52,211,153,.6); animation: pulse 2.4s infinite; flex: none; }
+  @keyframes pulse { 0% { box-shadow: 0 0 0 0 rgba(52,211,153,.55); } 70% { box-shadow: 0 0 0 9px rgba(52,211,153,0); } 100% { box-shadow: 0 0 0 0 rgba(52,211,153,0); } }
+
+  /* ---------- MAIN ---------- */
+  .main { display: grid; grid-template-rows: auto auto 1fr; min-width: 0; }
+  .head { display: flex; align-items: flex-end; justify-content: space-between; padding: 26px 28px 14px; gap: 24px; }
+  .eyebrow { font-family: "Geist Mono", monospace; font-size: 11px; letter-spacing: .16em; color: var(--muted); }
+  .title { font-family: "Instrument Serif", serif; font-weight: 400; font-size: 46px; line-height: 1.05; letter-spacing: -.015em; margin-top: 6px; }
+  .title em { color: var(--muted); font-size: 30px; margin-left: 6px; }
+  .stats {
+    display: flex; align-items: center; gap: 22px;
+    padding: 12px 16px 12px 18px; border-radius: 16px;
+    background: var(--panel); border: 1px solid var(--panel-b); backdrop-filter: blur(16px);
+  }
+  .stat .v { font-family: "Instrument Serif", serif; font-size: 34px; line-height: 1; }
+  .stat .l { font-size: 11.5px; color: var(--muted); margin-top: 3px; }
+  .bars { display: flex; align-items: flex-end; gap: 5px; height: 42px; }
+  .bars div { width: 9px; border-radius: 5px; background: linear-gradient(to top, #7c5cff, #2dd4bf); box-shadow: 0 0 12px rgba(124,92,255,.45); }
+  .bars div.future { background: var(--hover); box-shadow: none; }
+  .bars-l { display: flex; gap: 5px; margin-top: 5px; }
+  .bars-l span { width: 9px; text-align: center; font-family: "Geist Mono", monospace; font-size: 9px; color: var(--faint); }
+
+  .toolbar { display: flex; align-items: center; gap: 8px; padding: 0 28px 16px; }
+  .search {
+    display: flex; align-items: center; gap: 10px; width: 330px;
+    padding: 9px 12px; border-radius: 12px;
+    background: var(--panel); border: 1px solid var(--panel-b); backdrop-filter: blur(16px);
+    color: var(--faint); font-size: 13px;
+  }
+  .search svg { width: 15px; height: 15px; stroke: currentColor; fill: none; stroke-width: 1.7; }
+  kbd { margin-left: auto; font-family: "Geist Mono", monospace; font-size: 10.5px; padding: 2px 6px; border-radius: 6px; border: 1px solid var(--panel-b); color: var(--muted); }
+    .chip, .search, .new { white-space: nowrap; flex: none; }
+  .chip {
+    padding: 8px 12px; border-radius: 11px; font-size: 12.8px; color: var(--muted);
+    border: 1px solid var(--panel-b); background: var(--col);
+    display: flex; align-items: center; gap: 7px;
+  }
+  .chip.on { color: var(--text); border-color: color-mix(in oklab, #a78bfa 45%, transparent); box-shadow: 0 0 16px -4px color-mix(in oklab, #a78bfa 50%, transparent); }
+  .chip .mini { display: flex; }
+  .chip .mini i { width: 7px; height: 7px; border-radius: 50%; margin-left: -2px; box-shadow: 0 0 0 1.5px var(--bg); }
+  .new {
+    margin-left: auto; display: flex; align-items: center; gap: 8px;
+    padding: 9px 16px; border-radius: 12px; border: 0;
+    font: 500 13px "Geist", sans-serif; color: #fff;
+    background: linear-gradient(120deg, #7c5cff, #5b8cff 55%, #2dd4bf);
+    box-shadow: 0 0 0 1px rgba(255,255,255,.15) inset, 0 8px 24px -8px rgba(124,92,255,.8), 0 0 32px -10px rgba(45,212,191,.7);
+  }
+  .new kbd { border-color: rgba(255,255,255,.3); color: rgba(255,255,255,.85); margin-left: 4px; }
+
+  /* ---------- BOARD ---------- */
+  .board { position: relative; display: flex; gap: 14px; padding: 2px 28px 28px; overflow-x: auto; overflow-y: hidden; align-items: stretch; }
+  .board::-webkit-scrollbar { height: 8px; }
+  .board::-webkit-scrollbar-thumb { background: var(--panel-b); border-radius: 8px; }
+  .col {
+    flex: none; width: 244px; display: flex; flex-direction: column; gap: 10px;
+    padding: 12px 10px; border-radius: 18px;
+    background: var(--col); border: 1px solid var(--panel-b);
+  }
+  .col.over {
+    border-color: color-mix(in oklab, var(--c) 55%, transparent);
+    box-shadow: 0 0 0 1px color-mix(in oklab, var(--c) 25%, transparent), 0 0 40px -12px color-mix(in oklab, var(--c) 70%, transparent), inset 0 0 40px -20px color-mix(in oklab, var(--c) 60%, transparent);
+  }
+  .col-h { display: flex; align-items: center; gap: 9px; padding: 2px 4px 4px; font-size: 13px; font-weight: 500; }
+  .col-h .orb { width: 9px; height: 9px; border-radius: 50%; background: var(--c); box-shadow: 0 0 12px var(--c), 0 0 24px color-mix(in oklab, var(--c) 50%, transparent); }
+  .col-h .cnt { font-family: "Geist Mono", monospace; font-size: 11px; color: var(--faint); }
+  .col-h .add { margin-left: auto; color: var(--faint); font-size: 17px; line-height: 1; }
+  .wip { margin: -2px 4px 2px; display: flex; align-items: center; gap: 8px; font-family: "Geist Mono", monospace; font-size: 10px; color: var(--faint); }
+  .wip .track { flex: 1; height: 3px; border-radius: 3px; background: var(--hover); overflow: hidden; }
+  .wip .track i { display: block; height: 100%; width: 75%; background: var(--c); box-shadow: 0 0 8px var(--c); border-radius: 3px; }
+
+  .card {
+    position: relative; padding: 12px 13px 11px; border-radius: 14px;
+    background:
+      radial-gradient(120% 90% at 0% 0%, color-mix(in oklab, var(--acc) var(--tint), transparent), transparent 60%),
+      var(--card);
+    border: 1px solid var(--card-b);
+    box-shadow: 0 1px 0 rgba(255,255,255,.04) inset, 0 10px 28px -16px var(--shadow), 0 0 26px -14px color-mix(in oklab, var(--acc) var(--glow), transparent);
+    transition: transform .35s cubic-bezier(.2,.8,.2,1), box-shadow .35s;
+    cursor: grab;
+  }
+  .card:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 1px 0 rgba(255,255,255,.05) inset, 0 18px 36px -18px var(--shadow), 0 0 0 1px color-mix(in oklab, var(--acc) 30%, transparent), 0 0 36px -10px color-mix(in oklab, var(--acc) var(--glow), transparent);
+  }
+  .card .r1 { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
+  .tid { font-family: "Geist Mono", monospace; font-size: 11px; letter-spacing: .02em; color: color-mix(in oklab, var(--acc) var(--chip-mix), var(--text)); }
+  .card h4 { font-size: 13.6px; font-weight: 500; line-height: 1.38; letter-spacing: -.005em; }
+  .path { display: inline-flex; align-items: center; gap: 6px; margin-top: 9px; font-size: 11.5px; color: var(--muted); }
+  .path i { width: 6px; height: 6px; border-radius: 50%; background: var(--acc); box-shadow: 0 0 8px var(--acc); }
+  .path b { font-weight: 400; color: var(--faint); }
+  .meta { display: flex; align-items: center; gap: 10px; margin-top: 10px; padding-top: 9px; border-top: 1px solid var(--card-b); font-size: 11.5px; color: var(--muted); }
+  .meta .due { display: flex; align-items: center; gap: 5px; }
+  .meta .due svg { width: 12px; height: 12px; stroke: currentColor; fill: none; stroke-width: 1.7; }
+  .meta .due.late { color: #fb7185; text-shadow: 0 0 12px rgba(251,113,133,.5); }
+  .meta .due.today { color: #f59e0b; }
+  .ring { display: flex; align-items: center; gap: 5px; font-family: "Geist Mono", monospace; font-size: 10.5px; }
+  .ring svg { width: 13px; height: 13px; transform: rotate(-90deg); }
+  .tag { padding: 2px 7px; border-radius: 6px; font-size: 10.5px; background: var(--hover); color: var(--muted); }
+  .meta .end { margin-left: auto; display: flex; gap: 6px; align-items: center; }
+  .spark { width: 18px; height: 18px; border-radius: 6px; display: grid; place-items: center; background: linear-gradient(135deg, #d97757, #f0a37f); box-shadow: 0 0 12px -2px rgba(217,119,87,.8); }
+  .spark svg { width: 11px; height: 11px; fill: #fff; }
+
+  .prio { display: flex; align-items: flex-end; gap: 2px; height: 11px; }
+  .prio span { width: 3px; border-radius: 2px; background: var(--hover); }
+  .prio span:nth-child(1) { height: 4px; } .prio span:nth-child(2) { height: 6px; } .prio span:nth-child(3) { height: 8.5px; } .prio span:nth-child(4) { height: 11px; }
+  .prio span.f { background: var(--p); box-shadow: 0 0 6px var(--p); }
+  .prio.urgent span.f { animation: blink 1.8s ease-in-out infinite; }
+  @keyframes blink { 50% { box-shadow: 0 0 11px var(--p); opacity: .7; } }
+  .prio-wrap { display: flex; align-items: center; gap: 6px; font-size: 10.5px; color: var(--p); font-family: "Geist Mono", monospace; letter-spacing: .03em; }
+
+  .card.done { opacity: .62; }
+  .card.done h4 { text-decoration: line-through; text-decoration-color: color-mix(in oklab, var(--text) 30%, transparent); }
+  .card.done .check { width: 15px; height: 15px; border-radius: 50%; display: grid; place-items: center; background: #34d399; box-shadow: 0 0 10px rgba(52,211,153,.7); }
+  .card.done .check svg { width: 9px; height: 9px; stroke: #04221a; stroke-width: 3; fill: none; }
+
+  .card.ghost { opacity: .22; filter: saturate(.3); box-shadow: none; border-style: dashed; }
+  .slot {
+    height: 124px; border-radius: 14px; flex: none;
+    border: 1.5px dashed color-mix(in oklab, var(--c) 60%, transparent);
+    background: color-mix(in oklab, var(--c) 7%, transparent);
+    box-shadow: inset 0 0 30px -12px color-mix(in oklab, var(--c) 70%, transparent);
+  }
+  .card.lifted {
+    position: absolute; width: 244px; z-index: 20;
+    transform: rotate(2.6deg) scale(1.035);
+    cursor: grabbing;
+    box-shadow: 0 30px 60px -20px var(--shadow), 0 0 0 1px color-mix(in oklab, var(--acc) 45%, transparent), 0 0 60px -8px color-mix(in oklab, var(--acc) 60%, transparent);
+    animation: hover-float 3.2s ease-in-out infinite;
+  }
+  @keyframes hover-float { 50% { transform: rotate(2deg) scale(1.035) translateY(-4px); } }
+  .cursor { position: absolute; right: 26px; bottom: -12px; width: 22px; height: 22px; filter: drop-shadow(0 2px 4px rgba(0,0,0,.4)); }
+
+  /* ---------- CLAUDE TOAST ---------- */
+  .toast {
+    position: absolute; right: 22px; bottom: 22px; z-index: 30; width: 330px;
+    display: flex; gap: 12px; padding: 13px 15px; border-radius: 16px;
+    background: var(--panel); border: 1px solid var(--panel-b); backdrop-filter: blur(22px);
+    box-shadow: 0 20px 50px -18px var(--shadow), 0 0 40px -18px rgba(217,119,87,.7);
+    animation: rise 5s ease-in-out infinite;
+  }
+  @keyframes rise { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-4px); } }
+  .toast .spark { width: 30px; height: 30px; border-radius: 10px; flex: none; }
+  .toast .spark svg { width: 16px; height: 16px; }
+  .toast .t1 { font-size: 13px; }
+  .toast .t1 b { font-weight: 500; }
+  .toast .t1 code { font-family: "Geist Mono", monospace; font-size: 11.5px; color: #fb7185; }
+  .toast .t2 { font-size: 12px; color: var(--muted); margin-top: 3px; font-style: italic; }
+  .toast .t3 { font-family: "Geist Mono", monospace; font-size: 10px; color: var(--faint); margin-top: 6px; letter-spacing: .06em; }
+</style>
+</head>
+<body>
+  <header class="page-head">
+    <h1>Orbit, two skies</h1>
+    <p>The same board in both themes. Hover over cards to see the glow. INF-042 is shown mid-drag, and Claude has just updated a task (bottom right).</p>
+  </header>
+
+  <section class="variant">
+    <div class="variant-label"><b>A</b><span>Night Observatory</span><em>deep space, glowing project colors</em></div>
+    <div class="scroller" id="night"></div>
+  </section>
+
+  <section class="variant">
+    <div class="variant-label"><b>B</b><span>Dawn Observatory</span><em>the same light, at sunrise</em></div>
+    <div class="scroller" id="dawn"></div>
+  </section>
+
+<script>
+const P = {
+  INF: { name: "Infra", acc: "#2dd4bf" },
+  ACM: { name: "Acme Client", acc: "#a78bfa" },
+  ORB: { name: "Orbit", acc: "#fb7185" },
+  PER: { name: "Personal", acc: "#fbbf24" },
+};
+const PRIO = {
+  low:    { n: 1, c: "#94a3b8", l: "LOW" },
+  medium: { n: 2, c: "#60a5fa", l: "MED" },
+  high:   { n: 3, c: "#f59e0b", l: "HIGH" },
+  urgent: { n: 4, c: "#fb7185", l: "URGENT" },
+};
+const COLS = [
+  { name: "Backlog",     c: "#8b8fd6", cards: [
+    { id: "ORB-014", p: "ORB", sub: "Core", t: "Recurring tasks support", prio: "low", tags: ["idea"] },
+    { id: "PER-031", p: "PER", sub: "Learning", t: "Read DDIA chapters 5–7 and take notes", prio: "low", st: [0, 3] },
+    { id: "ACM-058", p: "ACM", sub: "Cost Review", t: "Draft cost-optimisation summary for Q4 review", prio: "medium", due: "Fri 9 Oct" },
+  ]},
+  { name: "To Do",       c: "#38bdf8", cards: [
+    { id: "INF-047", p: "INF", sub: "Terraform", t: "Rotate service principal secrets for prod", prio: "high", due: "Thu 1 Oct", tags: ["security"] },
+    { id: "ACM-061", p: "ACM", sub: "Landing Zone", t: "Clarification questions for SOW v2", prio: "medium", due: "Fri 2 Oct", st: [2, 6] },
+    { id: "PER-033", p: "PER", sub: "Home", t: "Book car service", prio: "low", due: "Sat 3 Oct" },
+  ]},
+  { name: "In Progress", c: "#a78bfa", wip: "3 / 4", cards: [
+    { id: "INF-042", p: "INF", sub: "Terraform", t: "Migrate state backend to remote storage with locking", prio: "urgent", due: "1d overdue", late: true, st: [4, 5], tags: ["terraform"], ghost: true },
+    { id: "ORB-011", p: "ORB", sub: "MCP", t: "MCP server: move_task & add_note tools", prio: "high", st: [2, 4], claude: true },
+    { id: "ACM-055", p: "ACM", sub: "Landing Zone", t: "Hub-spoke network module review", prio: "high", due: "Today", today: true },
+  ]},
+  { name: "Review",      c: "#e879f9", over: true, cards: [
+    { slot: true },
+    { id: "INF-039", p: "INF", sub: "Kubernetes", t: "Helm chart upgrade for ingress-nginx", prio: "medium", due: "Fri 2 Oct", tags: ["k8s"] },
+  ]},
+  { name: "Done",        c: "#34d399", cards: [
+    { id: "ORB-009", p: "ORB", sub: "Core", t: "Activity log schema", prio: "medium", done: true, claude: true },
+    { id: "ACM-050", p: "ACM", sub: "Landing Zone", t: "Gap report v1.1 sent to client", prio: "high", done: true },
+    { id: "PER-029", p: "PER", sub: "Home", t: "Renew domain", prio: "low", done: true },
+  ]},
+];
+const TREE = [
+  { k: "INF", n: 9, subs: [["Terraform", 5], ["Kubernetes", 4]] },
+  { k: "ACM", n: 11, subs: [["Landing Zone", 7], ["Cost Review", 4]] },
+  { k: "ORB", n: 6, subs: [["Core", 3], ["MCP", 2], ["UI", 1]] },
+  { k: "PER", n: 5, subs: [["Learning", 2], ["Home", 3]] },
+];
+
+const ICON = {
+  board: '<svg viewBox="0 0 24 24"><rect x="3" y="4" width="5" height="16" rx="1.5"/><rect x="10" y="4" width="5" height="11" rx="1.5"/><rect x="17" y="4" width="4" height="7" rx="1.5"/></svg>',
+  report: '<svg viewBox="0 0 24 24"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg>',
+  activity: '<svg viewBox="0 0 24 24"><path d="M3 12h4l3-8 4 16 3-8h4"/></svg>',
+  cal: '<svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="3"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>',
+  search: '<svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>',
+  clock: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>',
+  check: '<svg viewBox="0 0 24 24"><path d="m5 12 5 5 9-10"/></svg>',
+  spark: '<svg viewBox="0 0 24 24"><path d="M12 2c.6 4.8 2.9 8.3 10 10-7.1 1.7-9.4 5.2-10 10-.6-4.8-2.9-8.3-10-10 7.1-1.7 9.4-5.2 10-10z"/></svg>',
+};
+
+function prio(level) {
+  const p = PRIO[level];
+  const bars = [1,2,3,4].map(i => `<span class="${i <= p.n ? "f" : ""}"></span>`).join("");
+  return `<div class="prio-wrap" style="--p:${p.c}">${level === "urgent" || level === "high" ? p.l : ""}<div class="prio ${level}">${bars}</div></div>`;
+}
+function ring([a, b], acc) {
+  const r = 5.5, c = 2 * Math.PI * r, f = c * (a / b);
+  return `<span class="ring"><svg viewBox="0 0 14 14"><circle cx="7" cy="7" r="${r}" fill="none" stroke="currentColor" stroke-opacity=".2" stroke-width="2"/><circle cx="7" cy="7" r="${r}" fill="none" stroke="${acc}" stroke-width="2" stroke-linecap="round" stroke-dasharray="${f} ${c}" style="filter:drop-shadow(0 0 3px ${acc})"/></svg>${a}/${b}</span>`;
+}
+function card(d, extra = "") {
+  const acc = P[d.p].acc;
+  const cls = ["card", d.done && "done", d.ghost && "ghost", extra].filter(Boolean).join(" ");
+  const meta = [];
+  if (d.due) meta.push(`<span class="due ${d.late ? "late" : ""} ${d.today ? "today" : ""}">${ICON.clock}${d.due}</span>`);
+  if (d.st) meta.push(ring(d.st, acc));
+  const end = [];
+  (d.tags || []).forEach(t => end.push(`<span class="tag">${t}</span>`));
+  if (d.claude) end.push(`<span class="spark" title="Updated by Claude">${ICON.spark}</span>`);
+  const right = d.done ? `<span class="check">${ICON.check}</span>` : prio(d.prio);
+  return `<article class="${cls}" style="--acc:${acc}">
+    <div class="r1"><span class="tid">${d.id}</span>${right}</div>
+    <h4>${d.t}</h4>
+    <div class="path"><i></i>${P[d.p].name} <b>›</b> ${d.sub}</div>
+    ${meta.length || end.length ? `<div class="meta">${meta.join("")}<span class="end">${end.join("")}</span></div>` : ""}
+  </article>`;
+}
+
+function render(theme) {
+  const tree = TREE.map(t => `
+    <div class="proj" style="--acc:${P[t.k].acc}"><span class="dot"></span>${P[t.k].name}<span class="n">${t.n}</span></div>
+    <div class="subs" style="--acc:${P[t.k].acc}">${t.subs.map(([s, n]) => `<div class="sub"><i></i>${s}<span class="n">${n}</span></div>`).join("")}</div>`).join("");
+
+  const cols = COLS.map(col => `
+    <div class="col ${col.over ? "over" : ""}" style="--c:${col.c}">
+      <div class="col-h"><span class="orb"></span>${col.name}<span class="cnt">${col.cards.filter(c => !c.slot).length}</span><span class="add">+</span></div>
+      ${col.wip ? `<div class="wip"><span class="track"><i></i></span>WIP ${col.wip}</div>` : ""}
+      ${col.cards.map(c => c.slot ? `<div class="slot"></div>` : card(c)).join("")}
+    </div>`).join("");
+
+  const dragged = COLS[2].cards[0];
+  const lifted = card({ ...dragged, ghost: false }, "lifted").replace('class="card lifted"', 'class="card lifted" style="left:810px; top:44px; --acc:' + P[dragged.p].acc + '"');
+
+  // Mon + Tue are real so far this week; the rest are future days.
+  const weekBars = [3, 2].map(v => `<div style="height:${8 + v * 8}px"></div>`).join("") + [0,0,0,0,0].map(() => `<div class="future" style="height:6px"></div>`).join("");
+
+  return `
+  <div class="app ${theme}">
+    <div class="sky"></div>
+    <aside class="side">
+      <div class="logo"><span class="logo-orb"></span><span>Orbit</span></div>
+      <nav class="nav">
+        <a class="active">${ICON.board}Board<span class="k">B</span></a>
+        <a>${ICON.report}Reports<span class="k">R</span></a>
+        <a>${ICON.activity}Activity<span class="k">A</span></a>
+        <a>${ICON.cal}Calendar<span class="k">C</span></a>
+      </nav>
+      <div>
+        <div class="sec"><span>PROJECTS</span><span>+</span></div>
+        <div class="tree">${tree}</div>
+      </div>
+      <div class="side-foot">
+        <div class="claude-status"><span class="pulse"></span><div><b>Claude Code connected</b>via MCP · 2 sessions</div></div>
+      </div>
+    </aside>
+    <main class="main">
+      <div class="head">
+        <div>
+          <div class="eyebrow">TUESDAY · 29 SEPTEMBER</div>
+          <h2 class="title">All projects<em>· 16 active</em></h2>
+        </div>
+        <div class="stats">
+          <div class="stat"><div class="v">2</div><div class="l">done today</div></div>
+          <div class="stat"><div class="v">5</div><div class="l">this week</div></div>
+          <div>
+            <div class="bars">${weekBars}</div>
+            <div class="bars-l">${"MTWTFSS".split("").map(d => `<span>${d}</span>`).join("")}</div>
+          </div>
+        </div>
+      </div>
+      <div class="toolbar">
+        <div class="search">${ICON.search}Search tasks or type a command<kbd>⌘K</kbd></div>
+        <span class="chip on"><span class="mini">${Object.values(P).map(p => `<i style="background:${p.acc}"></i>`).join("")}</span>All projects</span>
+        <span class="chip">Priority</span>
+        <span class="chip">Due this week</span>
+        <span class="chip">Tags</span>
+        <button class="new">+ New task<kbd>N</kbd></button>
+      </div>
+      <div class="board">
+        ${cols}
+        ${lifted}
+      </div>
+    </main>
+    <div class="toast">
+      <span class="spark">${ICON.spark}</span>
+      <div>
+        <div class="t1"><b>Claude</b> added a note to <code>ORB-011</code></div>
+        <div class="t2">“move_task implemented, all 14 tests passing.”</div>
+        <div class="t3">JUST NOW · CLAUDE CODE SESSION</div>
+      </div>
+    </div>
+  </div>`;
+}
+
+function sprinkle(el, theme) {
+  const sky = el.querySelector(".sky");
+  const n = theme === "night" ? 140 : 26;
+  for (let i = 0; i < n; i++) {
+    const s = document.createElement("span");
+    s.className = theme === "night" ? "star" : "mote";
+    const size = theme === "night" ? (Math.random() < .9 ? 1 + Math.random() : 2.2) : 4 + Math.random() * 8;
+    s.style.cssText = `left:${Math.random() * 100}%;top:${Math.random() * 100}%;width:${size}px;height:${size}px;--o:${.25 + Math.random() * .6};--d:${3 + Math.random() * 5}s;--delay:${-Math.random() * 6}s`;
+    sky.appendChild(s);
+  }
+}
+
+["night", "dawn"].forEach(t => {
+  const host = document.getElementById(t);
+  host.innerHTML = render(t);
+  sprinkle(host, t);
+});
+</script>
+</body>
+</html>
