@@ -465,6 +465,7 @@ export class Repo {
     const end = new Date(endDate.getFullYear(), endDate.getMonth(), endDate.getDate() + 1).toISOString();
     const inScope = (r: Row) => !scope || scope.has(r.project_id);
 
+    const subtasksOf = this.db.prepare("SELECT title, done FROM subtasks WHERE task_id = ? ORDER BY position, id");
     const latestNote = this.db.prepare("SELECT body, actor, created_at FROM notes WHERE task_id = ? AND created_at >= ? AND created_at < ? ORDER BY created_at DESC, id DESC LIMIT 1");
     const toReportTask = (r: Row, noteFrom = "", noteTo = "9999"): ReportTask => {
       const n = latestNote.get(r.id, noteFrom, noteTo) as Row | undefined;
@@ -472,6 +473,7 @@ export class Repo {
         key: r.key, title: r.title, projectPath: pathOf(r.project_id), projectColor: byId.get(r.project_id)?.color ?? "#94a3b8",
         column: r.column_name, priority: r.priority, dueDate: r.due_date, completedAt: r.completed_at,
         blockedReason: r.blocked_reason, blockedAt: r.blocked_at, subtasksDone: r.st_done ?? 0, subtasksTotal: r.st_total ?? 0,
+        subtasks: (subtasksOf.all(r.id) as Row[]).map((s) => ({ title: s.title, done: !!s.done })),
         note: n ? { body: n.body, actor: n.actor, createdAt: n.created_at } : null,
       };
     };

@@ -416,6 +416,7 @@ export function registerTools(server: McpServer, client = new OrbitClient()) {
       project: z.union([z.string(), z.number()]).optional().describe("Limit to a project and its subprojects"),
       notes: z.boolean().optional().describe("Include the latest note per task (default true)"),
       send_to_teams: z.boolean().optional().describe("Also post the report to the user's Teams (only when they ask you to send it)"),
+      style: z.enum(["status", "detailed"]).optional().describe("status (default): the user's status-update format, project → Completed Work / In Progress / Blockers bullets; detailed: with task IDs, notes and dates"),
     },
     annotations: { readOnlyHint: true },
   }, safe(async (a) => {
@@ -448,9 +449,10 @@ export function registerTools(server: McpServer, client = new OrbitClient()) {
     }
     const projectId = a.project !== undefined ? resolveProject(b, a.project).id : null;
     const report = await client.get<Report>(`/report?from=${from}&to=${to}${projectId != null ? `&projectId=${projectId}` : ""}`);
-    const md = reportToMarkdown(report, { notes: a.notes ?? true });
+    const style = a.style ?? "status";
+    const md = reportToMarkdown(report, { notes: a.notes ?? true, style });
     if (!a.send_to_teams) return md;
-    await client.post("/notifications/report", { from, to, projectId, notes: a.notes ?? true });
+    await client.post("/notifications/report", { from, to, projectId, notes: a.notes ?? true, style });
     return `Sent to Teams.\n\n${md}`;
   }));
 

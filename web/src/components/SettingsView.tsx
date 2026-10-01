@@ -174,10 +174,16 @@ function ReportRule({ s, save, projects }: { s: PublicNotificationSettings; save
       <TimeInput value={r.time} onChange={(time) => save({ report: { time } })} />
       <ProjectPicker projects={projects} value={r.projectId} placeholder="All projects" onChange={(projectId) => save({ report: { projectId } })} />
       {r.projectId != null && <button type="button" className="mini-btn" onClick={() => save({ report: { projectId: null } })}>All projects</button>}
-      <label className="toggle">
-        <input type="checkbox" checked={r.notes} onChange={(e) => save({ report: { notes: e.target.checked } })} />
-        <span className="toggle-ui" />Notes
-      </label>
+      <select className="time-input" value={r.style} onChange={(e) => save({ report: { style: e.target.value as "status" | "detailed" } })} title="Message format">
+        <option value="status">Status update format</option>
+        <option value="detailed">Detailed format</option>
+      </select>
+      {r.style === "detailed" && (
+        <label className="toggle">
+          <input type="checkbox" checked={r.notes} onChange={(e) => save({ report: { notes: e.target.checked } })} />
+          <span className="toggle-ui" />Notes
+        </label>
+      )}
     </Rule>
   );
 }

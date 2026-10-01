@@ -95,7 +95,7 @@ describe("MCP tools", () => {
     await call("create_task", { title: "Kickoff deck", project: "Acme" });
     await call("complete_task", { key: "ACM-2" });
 
-    const week = (await call("get_report", {})).text;
+    const week = (await call("get_report", { style: "detailed" })).text;
     expect(week).toMatch(/^## Weekly update · /);
     expect(week).toContain("**1 task completed · 1 in progress · 1 blocker**");
     expect(week).toContain("- ACM-1 SOW questions _(Acme)_ — **Waiting on client** (since today)");
@@ -105,16 +105,21 @@ describe("MCP tools", () => {
     const at = (n: number) => fmtDate(new Date(now.getFullYear(), now.getMonth(), now.getDate() + n));
     const endOffset = (3 - now.getDay() + 7) % 7;
     const empty = { generatedAt: "", project: null, completed: [], inProgress: [], blocked: [], createdCount: 0, perDay: [] };
-    const wed = (await call("get_report", { week_ends_on: "wednesday" })).text;
+    const wed = (await call("get_report", { week_ends_on: "wednesday", style: "detailed" })).text;
     expect(wed.split("\n")[0]).toBe(`## ${reportTitle({ ...empty, from: at(endOffset - 6), to: at(endOffset) })}`);
-    const lastWed = (await call("get_report", { week_ends_on: "wed", period: "last_week" })).text;
+    const lastWed = (await call("get_report", { week_ends_on: "wed", period: "last_week", style: "detailed" })).text;
     expect(lastWed.split("\n")[0]).toBe(`## ${reportTitle({ ...empty, from: at(endOffset - 13), to: at(endOffset - 7) })}`);
 
     // "From last Wednesday to today", both ends included.
     const since = -(((now.getDay() - 3 + 7) % 7) || 7);
-    const range = (await call("get_report", { period: "range", from: "wednesday" })).text;
+    const range = (await call("get_report", { period: "range", from: "wednesday", style: "detailed" })).text;
     expect(range.split("\n")[0]).toBe(`## ${reportTitle({ ...empty, from: at(since), to: at(0) })}`);
-    expect((await call("get_report", { period: "today", project: "Acme", notes: false })).text).toMatch(/^## Acme · Daily update/);
+    expect((await call("get_report", { period: "today", project: "Acme", notes: false, style: "detailed" })).text).toMatch(/^## Acme · Daily update/);
+
+    const status = (await call("get_report", {})).text;
+    expect(status).toMatch(/^\*\*Weekly Status Update \(/);
+    expect(status).toContain("**Acme**\nCompleted Work:\n\n* Kickoff deck");
+    expect(status).toContain("Blockers:\n\n* SOW questions — Waiting on client");
 
     await call("update_task", { key: "ACM-1", blocked: null });
     expect((await call("list_tasks", { blocked: true })).text).toBe("No matching tasks.");

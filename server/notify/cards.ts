@@ -1,7 +1,7 @@
 // Adaptive Cards for Teams, in the envelope the Workflows "webhook alerts" templates expect.
 
 import type { Project, Task } from "../../shared/types.ts";
-import { reportSummary, reportTitle, type Report, type ReportTask } from "../../shared/report.ts";
+import { reportSummary, reportTitle, statusProjects, statusTitle, type Report, type ReportStyle, type ReportTask } from "../../shared/report.ts";
 
 export type Card = Record<string, unknown>;
 type Block = Record<string, unknown>;
@@ -120,7 +120,41 @@ export function claudeCompletedCard(t: Task, projects: Project[], note: string |
   return envelope(body, [open(`Open ${t.key}`, `?task=${encodeURIComponent(t.key)}`)]);
 }
 
-export function reportCard(r: Report, notes: boolean): Card {
+/** One bullet line, indented by level. Built from columns rather than Markdown lists, because
+ *  nested Markdown lists don't render consistently across Teams clients. */
+function bulletRow(text: string, level: 0 | 1): Block {
+  return {
+    type: "ColumnSet",
+    spacing: level ? "None" : "Small",
+    columns: [
+      { type: "Column", width: level ? "28px" : "12px", items: [{ type: "TextBlock", text: level ? "◦" : "•", horizontalAlignment: "Right", wrap: false }] },
+      { type: "Column", width: "stretch", items: [{ type: "TextBlock", text: plain(text), wrap: true }] },
+    ],
+  };
+}
+
+/** The status-update format: title, then each project in bold with its sections as bullets. */
+export function statusReportCard(r: Report): Card {
+  const body: Block[] = [{ type: "TextBlock", text: statusTitle(r), weight: "Bolder", size: "Large", wrap: true }];
+  const projects = statusProjects(r);
+  if (!projects.length) body.push(sub("No updates for this period."));
+  const sections = [["completed", "Completed Work:"], ["inProgress", "In Progress:"], ["blocked", "Blockers:"]] as const;
+  for (const p of projects) {
+    body.push({ type: "TextBlock", text: `**${plain(p.name)}**`, wrap: true, spacing: "Large", size: "Medium" });
+    for (const [key, label] of sections) {
+      if (!p[key].length) continue;
+      body.push({ type: "TextBlock", text: label, wrap: true, spacing: "Small" });
+      for (const item of p[key]) {
+        body.push(bulletRow(item.text, 0));
+        for (const c of item.children) body.push(bulletRow(c, 1));
+      }
+    }
+  }
+  return envelope(body, [open("Open report in Orbit", "?view=reports")]);
+}
+
+export function reportCard(r: Report, notes: boolean, style: ReportStyle = "status"): Card {
+  if (style === "status") return statusReportCard(r);
   const line = (t: ReportTask, extra?: string) =>
     `**${t.key}** ${plain(t.title)}${t.projectPath.length > 1 ? ` _(${plain(t.projectPath.slice(1).join(" › "))})_` : ""}${extra ? ` · ${extra}` : ""}`;
   const grouped = (tasks: ReportTask[], render: (t: ReportTask) => string): Block[] => {

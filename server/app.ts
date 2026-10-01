@@ -34,10 +34,13 @@ const schemas = {
     claudeCompleted: z.object({ enabled: z.boolean() }).partial().optional(),
     report: z.object({
       enabled: z.boolean(), frequency: z.enum(["daily", "weekly"]), weekday: z.number().int().min(0).max(6),
-      days: weekdays, time: hm, projectId: id.nullable(), notes: z.boolean(),
+      days: weekdays, time: hm, projectId: id.nullable(), notes: z.boolean(), style: z.enum(["status", "detailed"]),
     }).partial().optional(),
   }),
-  sendReport: z.object({ from: date.unwrap(), to: date.unwrap(), projectId: id.nullable().optional(), notes: z.boolean().optional() }),
+  sendReport: z.object({
+    from: date.unwrap(), to: date.unwrap(), projectId: id.nullable().optional(), notes: z.boolean().optional(),
+    style: z.enum(["status", "detailed"]).optional(),
+  }),
   projectCreate: z.object({
     name: z.string().min(1).max(80),
     parentId: id.nullable().optional(),
@@ -191,7 +194,7 @@ export function createApp(repo: Repo, notifier?: Notifier) {
   api.post("/notifications/report", async (c) => {
     if (!notifier) throw new InvalidError("Notifications aren't running");
     const b = await body(c, schemas.sendReport);
-    const error = await notifier.sendReport(b.from, b.to, b.projectId ?? null, b.notes ?? true);
+    const error = await notifier.sendReport(b.from, b.to, b.projectId ?? null, b.notes ?? true, b.style ?? "status");
     if (error) throw new InvalidError(`Couldn't send to Teams: ${error}`);
     return c.json({ ok: true });
   });
@@ -202,7 +205,7 @@ export function createApp(repo: Repo, notifier?: Notifier) {
     const today = new Date();
     const iso = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
     const report = repo.getReport(q.from ?? iso, q.to ?? q.from ?? iso, q.projectId ? Number(q.projectId) : null);
-    const opts = { notes: q.notes !== "0" };
+    const opts = { notes: q.notes !== "0", style: q.style === "detailed" ? "detailed" as const : "status" as const };
     if (q.format === "md") return c.text(reportToMarkdown(report, opts), 200, { "content-type": "text/markdown; charset=utf-8" });
     if (q.format === "html") return c.html(reportToHtml(report, opts));
     return c.json(report);

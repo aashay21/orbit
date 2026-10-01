@@ -119,12 +119,12 @@ describe("scheduled notifications", () => {
     fail = false;
     clock = new Date(2026, 8, 30, 17, 10); // too soon to retry
     await notifier.tick();
-    expect(sent.filter((c) => text(c).includes("Weekly update"))).toHaveLength(0);
+    expect(sent.filter((c) => text(c).includes("Weekly Status Update"))).toHaveLength(0);
     clock = new Date(2026, 8, 30, 17, 20);
     await notifier.tick();
-    const reports = sent.filter((c) => text(c).includes("Weekly update"));
+    const reports = sent.filter((c) => text(c).includes("Weekly Status Update"));
     expect(reports).toHaveLength(1);
-    expect(text(reports[0])).toContain("Weekly update · 24–30 Sep 2026");
+    expect(text(reports[0])).toContain("Weekly Status Update (24 Sep – 30 Sep 2026)");
     expect(repo.notifyLogRecent().find((l) => l.kind === "report")).toMatchObject({ status: "ok", attempts: 2 });
   });
 

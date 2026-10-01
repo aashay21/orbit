@@ -24,6 +24,8 @@ export interface NotificationSettings {
     time: string;
     projectId: number | null;
     notes: boolean;
+    /** "status": the plain status-update format; "detailed": with IDs, notes and dates. */
+    style: "status" | "detailed";
   };
   /** When settings were last saved. Schedules only fire for slots after this, so saving never
    *  triggers a burst of already-passed messages. */
@@ -38,7 +40,7 @@ export const DEFAULT_NOTIFICATIONS: NotificationSettings = {
   taskReminders: { enabled: true },
   blockers: { enabled: true },
   claudeCompleted: { enabled: true },
-  report: { enabled: true, frequency: "weekly", weekday: 5, days: [1, 2, 3, 4, 5], time: "17:00", projectId: null, notes: true },
+  report: { enabled: true, frequency: "weekly", weekday: 5, days: [1, 2, 3, 4, 5], time: "17:00", projectId: null, notes: true, style: "status" },
   savedAt: null,
 };
 

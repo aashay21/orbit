@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { addDays, differenceInCalendarDays, format, isSameDay, parseISO } from "date-fns";
-import { reportSummary, reportTitle, reportToHtml, reportToMarkdown, type Report, type ReportTask } from "@shared/report";
+import { reportSummary, reportTitle, reportToHtml, reportToMarkdown, type Report, type ReportStyle, type ReportTask } from "@shared/report";
 import { api } from "../api";
 import { remember, useStore } from "../store";
 import { chartColor, cx, relativeTime, toISODate } from "../util";
@@ -42,6 +42,7 @@ export function ReportsView() {
   const [range, setRange] = useState<{ from: string; to: string }>(() => ({ from: toISODate(addDays(new Date(), -7)), to: toISODate(new Date()) }));
   const [projectId, setProjectId] = useState<number | null>(() => load("orbit.report.project", null));
   const [notes, setNotes] = useState<boolean>(() => load("orbit.report.notes", true));
+  const [style, setStyle] = useState<ReportStyle>(() => load("orbit.report.style", "status"));
   const [report, setReport] = useState<Report | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -64,11 +65,11 @@ export function ReportsView() {
   const days = differenceInCalendarDays(to, from) + 1;
   const choose = (m: Mode) => { setMode(m); remember("orbit.report.mode", m); };
 
-  const md = report ? reportToMarkdown(report, { notes }) : "";
+  const md = report ? reportToMarkdown(report, { notes, style }) : "";
   const copy = async (rich: boolean) => {
     if (!report) return;
     try {
-      if (rich) await copyRich(reportToHtml(report, { notes }), md);
+      if (rich) await copyRich(reportToHtml(report, { notes, style }), md);
       else await navigator.clipboard.writeText(md);
       toast(rich ? "Copied: paste into Teams, Outlook or Gmail" : "Copied Markdown");
     } catch {
@@ -100,7 +101,7 @@ export function ReportsView() {
             onClick={async () => {
               if (!stats?.notificationsReady) { set({ view: "settings" }); return; }
               setSending(true);
-              try { await api.sendReport({ from: fromS, to: toS, projectId: validProject, notes }); toast("Sent to Teams"); }
+              try { await api.sendReport({ from: fromS, to: toS, projectId: validProject, notes, style }); toast("Sent to Teams"); }
               catch (e) { toast(e instanceof Error ? e.message : "Couldn't send", "error"); }
               finally { setSending(false); }
             }}><Icon name="send" size={14} />{sending ? "Sending…" : "Send to Teams"}</button>
@@ -144,10 +145,18 @@ export function ReportsView() {
             onChange={(id) => { setProjectId(id); remember("orbit.report.project", id); }} />
           {validProject != null && <button className="mini-btn" onClick={() => { setProjectId(null); remember("orbit.report.project", null); }}>All projects</button>}
         </div>
-        <label className="toggle">
-          <input type="checkbox" checked={notes} onChange={(e) => { setNotes(e.target.checked); remember("orbit.report.notes", e.target.checked); }} />
-          <span className="toggle-ui" />Include notes
-        </label>
+        <div className="seg report-style" role="radiogroup" aria-label="Format">
+          {(["status", "detailed"] as ReportStyle[]).map((v) => (
+            <button key={v} role="radio" aria-checked={style === v} className={cx(style === v && "on")}
+              onClick={() => { setStyle(v); remember("orbit.report.style", v); }}>{v === "status" ? "Status update" : "Detailed"}</button>
+          ))}
+        </div>
+        {style === "detailed" && (
+          <label className="toggle">
+            <input type="checkbox" checked={notes} onChange={(e) => { setNotes(e.target.checked); remember("orbit.report.notes", e.target.checked); }} />
+            <span className="toggle-ui" />Include notes
+          </label>
+        )}
       </div>
 
       <div className="page-body">
@@ -160,6 +169,14 @@ export function ReportsView() {
               <Tile label="Blockers" value={report.blocked.length} tone={report.blocked.length ? "blocked" : "quiet"} hint="right now" />
               <Tile label="Created" value={report.createdCount} tone="quiet" />
             </div>
+
+            {style === "status" && (
+              <section className="report-sec preview-card">
+                <h3>Message preview<span>what Copy and Send to Teams produce</span></h3>
+                <div className="status-preview" dangerouslySetInnerHTML={{ __html: reportToHtml(report, { style: "status" }) }} />
+                <p className="muted small">Each completed task's title is a bullet, and its completed subtasks are the sub-bullets.</p>
+              </section>
+            )}
 
             {days > 1 && days <= 31 && <WeekChart report={report} />}
 

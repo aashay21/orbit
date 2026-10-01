@@ -71,7 +71,7 @@ export const api = {
   notifications: () => request<NotificationsView>("GET", "/notifications"),
   saveNotifications: (p: NotificationsPatch) => request<NotificationsView>("PUT", "/notifications", p),
   testNotification: () => request<{ ok: boolean; error: string | null; view: NotificationsView }>("POST", "/notifications/test"),
-  sendReport: (b: { from: string; to: string; projectId: number | null; notes: boolean }) => request<{ ok: true }>("POST", "/notifications/report", b),
+  sendReport: (b: { from: string; to: string; projectId: number | null; notes: boolean; style?: "status" | "detailed" }) => request<{ ok: true }>("POST", "/notifications/report", b),
   archivedTasks: () => request<Task[]>("GET", "/tasks?archived=1"),
   task: (key: string) => request<TaskDetail>("GET", `/tasks/${encodeURIComponent(key)}`),
   createTask: (t: TaskInput) => request<TaskDetail>("POST", "/tasks", t),

@@ -875,3 +875,13 @@ kbd {
 .log-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .log-title em { color: var(--rose); font-style: normal; }
 .log-row time { color: var(--faint); font-size: 11.5px; white-space: nowrap; }
+
+/* status-update preview: a neutral "message" surface, like the pasted result */
+.status-preview {
+  padding: 16px 18px; border-radius: 12px; background: var(--card); border: 1px solid var(--card-b);
+  max-height: 420px; overflow-y: auto; margin-bottom: 8px;
+}
+.status-preview > div { font-family: var(--font) !important; color: var(--text); }
+.status-preview ul { list-style: disc; }
+.status-preview ul ul { list-style: circle; }
+.preview-card h3 span { letter-spacing: 0; text-transform: none; font-family: var(--font); color: var(--faint); }

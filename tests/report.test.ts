@@ -3,7 +3,7 @@ import { openDatabase } from "../server/db/index.ts";
 import { Repo, type Ctx } from "../server/repo.ts";
 import { createApp } from "../server/app.ts";
 import { fmtDate } from "../shared/recurrence.ts";
-import { reportTitle, reportToHtml, reportToMarkdown } from "../shared/report.ts";
+import { reportTitle, reportToHtml, reportToMarkdown, statusTitle } from "../shared/report.ts";
 import { chartColor } from "../web/src/util.ts";
 
 const me: Ctx = { actor: "user", clientId: null };
@@ -66,14 +66,14 @@ describe("reports", () => {
     expect(scoped.project).toBe("Acme");
     expect([scoped.completed.length, scoped.inProgress.length, scoped.blocked.length]).toEqual([0, 0, 1]);
 
-    const md = reportToMarkdown(r);
+    const md = reportToMarkdown(r, { style: "detailed" });
     expect(md).toContain("**1 task completed · 1 in progress · 1 blocker**");
     expect(md).toContain("**Infra**\n- INF-1 Rotate secrets _(Terraform)_\n  - Rotated all prod secrets.");
     expect(md).toMatch(/- INF-2 State backend — In Progress · due .* · 0\/2 subtasks/);
     expect(md).toContain("- ACM-1 SOW questions _(Acme)_ — **Waiting on client** (since today)");
-    expect(reportToMarkdown(r, { notes: false })).not.toContain("Rotated all prod");
+    expect(reportToMarkdown(r, { notes: false, style: "detailed" })).not.toContain("Rotated all prod");
 
-    const html = reportToHtml({ ...r, blocked: [{ ...r.blocked[0], blockedReason: "<script>" }] });
+    const html = reportToHtml({ ...r, blocked: [{ ...r.blocked[0], blockedReason: "<script>" }] }, { style: "detailed" });
     expect(html).toContain("&lt;script&gt;");
     expect(html).not.toContain("<script>");
   });
@@ -90,7 +90,8 @@ describe("reports", () => {
     expect((await app.request(`/api/report?from=${today}`)).status).toBe(200);
     const md = await app.request(`/api/report?from=${today}&to=${today}&format=md`);
     expect(md.headers.get("content-type")).toContain("text/markdown");
-    expect(await md.text()).toContain("Daily update");
+    expect(await md.text()).toContain("Daily Status Update");
+    expect(await (await app.request(`/api/report?from=${today}&format=md&style=detailed`)).text()).toContain("Daily update");
     expect((await app.request("/api/report?from=2026-10-05&to=2026-10-01")).status).toBe(400);
     expect((await app.request("/api/report?from=last-week")).status).toBe(400);
   });
@@ -101,5 +102,63 @@ describe("chart colours", () => {
     expect(["#2dd4bf", "#a78bfa", "#fb7185", "#fbbf24", "#38bdf8", "#f472b6"].map((c) => chartColor(c, 0.64)))
       .toEqual(["#00a592", "#9276e2", "#db5c6f", "#b98100", "#0099d2", "#d15d9a"]);
     expect(chartColor("#2dd4bf", 0.62)).toBe("#009f8c");
+  });
+});
+
+describe("status-update format", () => {
+  it("reproduces the user's weekly format: title, bold projects, completed work with subtask sub-bullets", () => {
+    const cf = repo.createProject(me, { name: "Northwind" });
+    const ld = repo.createProject(me, { name: "Training" });
+    const done = (projectId: number, title: string, subtasks: string[] = []) => {
+      const t = repo.createTask(me, { title, projectId, subtasks });
+      for (const s of t.subtasks) repo.updateSubtask(me, s.id, { done: true });
+      repo.moveTask(me, t.key, { columnId: col("Done") });
+    };
+    done(cf.id, "Reviewed the service architecture to plan the database upgrade.");
+    done(cf.id, "Investigated two alerts triggered in the Northwind staging environment:", ["Disk space warning", "Slow API response alert"]);
+    done(ld.id, "Completed the security awareness course.");
+    const wip = repo.createTask(me, { title: "Write the deployment runbook", projectId: cf.id, columnId: col("In Progress"), subtasks: ["draft"] });
+    repo.updateTask(me, wip.key, { blocked: "Waiting for access to the staging server" });
+
+    const r = repo.getReport(today, today);
+    expect(reportToMarkdown(r)).toBe([
+      `**${statusTitle(r)}**`,
+      "",
+      "**Northwind**",
+      "Completed Work:",
+      "",
+      "* Reviewed the service architecture to plan the database upgrade.",
+      "* Investigated two alerts triggered in the Northwind staging environment:",
+      "   * Disk space warning",
+      "   * Slow API response alert",
+      "",
+      "In Progress:",
+      "",
+      "* Write the deployment runbook",
+      "",
+      "Blockers:",
+      "",
+      "* Write the deployment runbook — Waiting for access to the staging server",
+      "",
+      "**Training**",
+      "Completed Work:",
+      "",
+      "* Completed the security awareness course.",
+      "",
+    ].join("\n"));
+
+    const html = reportToHtml(r);
+    expect(html).toContain("<b>Training</b>");
+    expect(html).toContain("<li>Investigated two alerts triggered in the Northwind staging environment:<ul");
+    expect(html).toContain("<li>Disk space warning</li>");
+    expect(html).not.toContain("NOR-"); // no task IDs in this format
+  });
+
+  it("titles daily, weekly and custom ranges", () => {
+    const base = { generatedAt: "", project: null, completed: [], inProgress: [], blocked: [], createdCount: 0, perDay: [] };
+    expect(statusTitle({ ...base, from: "2026-09-24", to: "2026-09-30" })).toBe("Weekly Status Update (24 Sep – 30 Sep 2026)");
+    expect(statusTitle({ ...base, from: "2026-09-29", to: "2026-09-29" })).toBe("Daily Status Update (Tue 29 Sep 2026)");
+    expect(statusTitle({ ...base, from: "2025-12-29", to: "2026-01-06" })).toBe("Status Update (29 Dec 2025 – 6 Jan 2026)");
+    expect(reportToMarkdown({ ...base, from: "2026-09-29", to: "2026-09-29" })).toContain("_No updates for this period._");
   });
 });

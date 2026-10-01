@@ -89,11 +89,11 @@ export class Notifier {
   }
 
   /** Sends a report on demand (from the Reports page or Claude). */
-  async sendReport(from: string, to: string, projectId: number | null, notes: boolean): Promise<string | null> {
+  async sendReport(from: string, to: string, projectId: number | null, notes: boolean, style: "status" | "detailed" = "status"): Promise<string | null> {
     const s = this.repo.getNotificationSettings();
     if (!s.teamsWebhook) return "Add a Teams webhook URL in Settings first";
     const r = this.repo.getReport(from, to, projectId);
-    return this.deliver(s.teamsWebhook, "report", `Report ${from} → ${to}`, reportCard(r, notes), null);
+    return this.deliver(s.teamsWebhook, "report", `Report ${from} → ${to}`, reportCard(r, notes, style), null);
   }
 
   private async onEvent(ev: DomainEvent) {
@@ -162,7 +162,7 @@ export class Notifier {
           const from = s.report.frequency === "weekly" ? fmtDate(addDays(due, -6)) : to;
           await this.once(url, `report:${s.report.frequency}:${to}`, "report", `${s.report.frequency === "weekly" ? "Weekly" : "Daily"} report ${from} → ${to}`, () => {
             const projectId = s.report.projectId != null && board.projects.some((p) => p.id === s.report.projectId && !p.archivedAt) ? s.report.projectId : null;
-            return reportCard(this.repo.getReport(from, to, projectId), s.report.notes);
+            return reportCard(this.repo.getReport(from, to, projectId), s.report.notes, s.report.style);
           });
         }
       }
