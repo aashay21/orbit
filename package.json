@@ -3,13 +3,28 @@
   "version": "0.1.0",
   "private": true,
   "description": "A local-first Kanban task tracker with a night-sky UI.",
+  "license": "MIT",
+  "author": "aashay21",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/aashay21/orbit.git"
+  },
+  "keywords": [
+    "kanban",
+    "task-tracker",
+    "local-first",
+    "sqlite",
+    "mcp",
+    "claude-code",
+    "microsoft-teams"
+  ],
   "type": "module",
   "engines": {
     "node": ">=22"
   },
   "scripts": {
     "dev": "concurrently -k -n server,web -c magenta,cyan \"npm:dev:server\" \"npm:dev:web\"",
-    "dev:server": "ORBIT_DATA=./data-dev tsx watch server/index.ts",
+    "dev:server": "tsx watch server/index.ts --dev",
     "dev:web": "vite --config web/vite.config.ts",
     "build": "npm run build:web && npm run build:server && npm run build:mcp",
     "build:web": "vite build --config web/vite.config.ts",

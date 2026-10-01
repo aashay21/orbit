@@ -1,171 +1,417 @@
 # Orbit
 
-A local-only Kanban board for every project you're working on, with a night-sky (and dawn) look.
-Everything runs on your machine at `http://127.0.0.1:4700`, and data lives in one SQLite file.
+**A personal Kanban board that runs entirely on your own computer.** One board for all your projects,
+with a night-sky (or dawn) look, status reports for your daily and weekly updates, reminders in
+Microsoft Teams, and an assistant that can manage your tasks for you through Claude Code.
 
-## Features
+Your tasks are stored in a single file on your machine. Nothing is sent to the internet unless you
+turn on Teams notifications.
 
-- **One board, all projects.** Filter by a project (including its subprojects) from the sidebar.
-- **Projects and nested subprojects.** Each has its own colour. Top-level projects set a task prefix.
-- **Permanent task IDs**, like `INF-42`. They never change, even if a task moves to another project.
-- **Customisable columns.** The defaults are Backlog, To Do, In Progress, Review and Done. You can rename, recolour, reorder, add and delete columns, set WIP limits, and choose which columns count as done.
-- **Smooth drag-and-drop** between and within columns. Keyboard dragging also works.
-- **Per-task fields:** priority, optional due date, tags, Markdown description, subtasks, notes and full history.
-- **Recurring tasks:** daily, weekdays, weekly on chosen days, every N days/weeks/months, monthly or yearly, with an optional end date. Completing one creates the next occurrence (new ID, next due date, subtasks reset). The completed task stays in Done for reports.
-- **Blockers:** mark a task blocked with what it's waiting on. It gets a red glow and a "Blocked" filter, and the blocker clears automatically when the task is completed.
-- **Reports** for a day, a week (you choose which weekday the week ends on, e.g. Thu–Wed) or any custom range. They show what was completed, what's in progress and what's blocked, grouped by project and optionally for one project only, with a per-day chart. Two formats are available: **Status update** (the default: a title, then each project in bold with "Completed Work", "In Progress" and "Blockers" bullets, with each task's completed subtasks as sub-bullets) and **Detailed** (with task IDs, notes and dates). Use *Copy for Teams / email* (formatted), *Copy Markdown* or download a `.md` file.
-- **Reminders:** set "Remind me" on any task (quick picks or an exact date and time) and get a Teams message then.
-- **Teams notifications:** a morning digest, due-today reminders, task reminders, new blockers, tasks Claude completes, and a scheduled daily or weekly report. Each can be switched on or off and timed in **Settings**, and anything missed while the laptop was off is sent on catch-up.
-- **Search and filters** by text, priority, due date, tags and blocked status.
-- **Archive** for finished work. Restore anything later.
-- **Activity feed** of every change, including who made it (you or Claude).
-- **Live updates:** changes from other tabs or Claude Code appear instantly.
-- **Themes:** Night, Dawn or Auto (follows your system).
-- **Command palette** (`Ctrl K`) and keyboard shortcuts.
-- **Claude Code integration** through an MCP server (see below). Claude's changes appear live, are marked with a spark, and the sidebar shows when Claude Code is active.
+---
 
-Possible next step: email as a second notification channel.
+## Contents
 
-## Teams notifications
+- [What you get](#what-you-get)
+- [Supported systems](#supported-systems)
+- [Set it up](#set-it-up)
+  - [Linux (Ubuntu, Debian, Fedora…)](#linux)
+  - [macOS](#macos)
+  - [Windows](#windows)
+- [Open it like a normal app](#open-it-like-a-normal-app)
+- [Optional: let Claude Code manage your tasks](#optional-let-claude-code-manage-your-tasks)
+- [Optional: Microsoft Teams notifications](#optional-microsoft-teams-notifications)
+- [Using Orbit](#using-orbit)
+- [Updating Orbit](#updating-orbit)
+- [Your data and backups](#your-data-and-backups)
+- [Troubleshooting](#troubleshooting)
+- [For developers](#for-developers)
 
-1. In Teams, open **Workflows** and create one from the **"Send webhook alerts to a chat"** (or "…to a channel") template, then copy the URL it gives you.
-2. In Orbit, go to **Settings**, paste the URL and press **Send test message**. Teams usually shows the card within a few seconds.
-3. Choose which notifications to get and when.
+---
 
-The webhook URL works like a password, so it's stored only in `data/orbit.db` and is never shown in full or included in exports.
-Orbit only makes outbound HTTPS calls to Microsoft; nothing can reach Orbit from outside. Messages contain task titles and
-details, so they are visible to anyone in that Teams chat or channel. "Open in Orbit" buttons link to `127.0.0.1`, so they only
-work on this laptop.
+## What you get
 
-## Claude Code
+- **One board for every project.** Projects can have subprojects. Click a project in the sidebar to see only its tasks.
+- **Smooth drag-and-drop** between columns (Backlog, To Do, In Progress, Review and Done to start with; rename, add or remove them as you like).
+- **Task IDs that never change**, like `WEB-12`.
+- **Everything a task needs:** priority, due date, tags, notes, a checklist, a "blocked" flag with the reason, and full history.
+- **Repeating tasks:** daily, weekdays, weekly on chosen days, monthly, yearly. Finishing one creates the next.
+- **Reminders** at any date and time you choose.
+- **Status reports** for a day, a week (ending on any weekday you like) or any date range, in a clean "Status Update" format you can copy into Teams or email.
+- **Teams notifications** (optional): morning summary, due-today reminders, task reminders, new blockers, and your weekly report on a schedule.
+- **Claude Code integration** (optional): ask Claude to create, update or complete tasks, or to write your weekly update.
+- **Night, Dawn and Auto themes**, a command palette (`Ctrl K`) and keyboard shortcuts.
 
-`mcp/` is a small MCP server that Claude Code starts on demand. It talks to the running Orbit over
-`http://127.0.0.1:4700`, so every change shows up live and is attributed to Claude. Register it once
-(user scope, so it works in every project):
+## Supported systems
 
-```bash
-npm run mcp:install
-```
+| System | Runs Orbit | Starts automatically at login | Notes |
+| --- | --- | --- | --- |
+| **Linux** (Ubuntu 22.04+, Debian, Fedora, any distro with systemd) | ✅ | ✅ one command | Developed and tested here. |
+| **macOS** 12+ (Intel or Apple Silicon) | ✅ | ✅ a few commands (launchd) | Not tested by the author yet. Please open an issue if a step doesn't work. |
+| **Windows** 10 / 11 | ✅ | ✅ a few commands (Task Scheduler) | Not tested by the author yet. Please open an issue if a step doesn't work. |
 
-Then ask Claude things like:
+On every system you need:
 
-- "What's on my board?" / "What's overdue?"
-- "Create a task under Infra/Terraform to rotate the prod secrets, high priority, due Friday"
-- "I'm starting INF-12", "Add a note to INF-12 that the pipeline is fixed", "INF-12 is done"
-- "Make ACM-4 repeat every Monday"
-- "What did I finish today?"
-- "ACM-2 is blocked waiting on the client's DR requirements"
-- "Give me my weekly update" / "…for Acme Client, week ending Wednesday" / "…from last Wednesday to today"
-- "Send my weekly update to Teams"
-- "Remind me about INF-3 tomorrow at 3pm"
+- **Node.js 22 or newer**
+- **Git**
+- **Google Chrome or Microsoft Edge**, to install Orbit as a desktop app (any modern browser works for using it)
 
-Tools: `board_overview`, `list_projects`, `list_tasks`, `get_task`, `create_task`, `update_task`,
-`move_task`, `complete_task`, `add_note`, `add_subtasks`, `update_subtask`, `archive_task`,
-`create_project`, `recent_activity` and `get_report`. There is deliberately no delete tool: Claude can archive
-tasks, but only you delete them. Projects can be named by name, path (`Acme Client/Landing Zone`),
-prefix (`ACM`) or id; dates accept `today`, `friday`, `+3d` or `YYYY-MM-DD`.
+---
 
-## Running it
+## Set it up
 
-Orbit runs as a **systemd user service**. It starts when you log in and restarts itself if it crashes:
+Choose your system. Each guide takes about 5–10 minutes. When you're done, Orbit is running at
+**http://127.0.0.1:4700** and starts by itself whenever you log in.
+
+<a id="linux"></a>
+### 🐧 Linux
+
+**1. Install Git and Node.js 22.** These commands use [nvm](https://github.com/nvm-sh/nvm), which works on every distro:
 
 ```bash
-npm run service:install     # build, install and start (safe to re-run)
-npm run service:update      # after code changes: snapshot DB, test, build, restart
-npm run service:uninstall   # stop and remove the service (keeps your data)
+sudo apt install -y git curl          # Fedora: sudo dnf install -y git curl
+curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.3/install.sh | bash
+source ~/.bashrc
+nvm install 22
 ```
+
+Check it worked: `node --version` should print `v22` or newer.
+
+**2. Download Orbit and set it up to run in the background:**
 
 ```bash
-systemctl --user status orbit
-journalctl --user -u orbit -f
+git clone https://github.com/aashay21/orbit.git ~/orbit
+cd ~/orbit
+npm run service:install
 ```
 
-**Use it like a desktop app:** open `http://127.0.0.1:4700` in Chrome or Edge, then choose
-"Install Orbit" (the install icon in the address bar, or ⋮ → *Cast, save and share* → *Install page as app*).
-Orbit then gets its own window and an entry in the app launcher.
+This installs everything, builds the app, and registers Orbit as a background service that starts
+at login and restarts itself if it ever stops. When it prints `✓ Orbit is running at http://127.0.0.1:4700`,
+you're done.
 
-To have the Orbit window open by itself every time you log in (it waits for the service to be ready):
+**3. Open http://127.0.0.1:4700** in your browser.
 
-```bash
-npm run autostart:install    # after installing the app from Chrome
-npm run autostart:remove     # turn it off again
-```
-
-To start Orbit at boot instead of at login, run this once:
+<details>
+<summary>Optional: start Orbit when the computer boots (before anyone logs in)</summary>
 
 ```bash
 loginctl enable-linger "$USER"
 ```
+</details>
 
-## Your data
+<a id="macos"></a>
+### 🍎 macOS
+
+**1. Install the Xcode command-line tools** (they include Git). Open **Terminal** and run:
+
+```bash
+xcode-select --install
+```
+
+**2. Install Node.js 22** with [Homebrew](https://brew.sh) (install Homebrew first if you don't have it):
+
+```bash
+brew install node@22
+brew link --overwrite node@22
+```
+
+Check it worked: `node --version` should print `v22` or newer.
+
+**3. Download and build Orbit:**
+
+```bash
+git clone https://github.com/aashay21/orbit.git ~/orbit
+cd ~/orbit
+npm install
+npm run build
+```
+
+**4. Make it start at login.** Copy and paste this whole block into Terminal:
+
+```bash
+cd ~/orbit && mkdir -p data ~/Library/LaunchAgents
+cat > ~/Library/LaunchAgents/com.orbit.server.plist <<EOF
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key><string>com.orbit.server</string>
+  <key>ProgramArguments</key>
+  <array><string>$(command -v node)</string><string>$HOME/orbit/dist/server/index.js</string></array>
+  <key>WorkingDirectory</key><string>$HOME/orbit</string>
+  <key>RunAtLoad</key><true/>
+  <key>KeepAlive</key><true/>
+  <key>StandardOutPath</key><string>$HOME/orbit/data/orbit.log</string>
+  <key>StandardErrorPath</key><string>$HOME/orbit/data/orbit.log</string>
+</dict>
+</plist>
+EOF
+launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.orbit.server.plist
+```
+
+**5. Open http://127.0.0.1:4700** in your browser.
+
+To stop it starting at login, run `launchctl bootout gui/$(id -u)/com.orbit.server`.
+
+<a id="windows"></a>
+### 🪟 Windows
+
+**1. Install Git and Node.js 22.** Open **PowerShell** (Start menu → type "PowerShell") and run:
+
+```powershell
+winget install --id Git.Git -e
+winget install --id OpenJS.NodeJS.LTS -e
+```
+
+Close and reopen PowerShell, then check: `node --version` should print `v22` or newer.
+
+**2. Download and build Orbit:**
+
+```powershell
+git clone https://github.com/aashay21/orbit.git $HOME\orbit
+cd $HOME\orbit
+npm install
+npm run build
+```
+
+**3. Make it start at login, hidden in the background.** Paste this whole block into PowerShell:
+
+```powershell
+cd $HOME\orbit
+$node = (Get-Command node).Source
+$cmd = "Set-Location '$HOME\orbit'; & '$node' dist\server\index.js"
+$action = New-ScheduledTaskAction -Execute "powershell.exe" -Argument "-WindowStyle Hidden -NoProfile -Command `"$cmd`""
+$trigger = New-ScheduledTaskTrigger -AtLogOn -User $env:USERNAME
+$settings = New-ScheduledTaskSettingsSet -ExecutionTimeLimit ([TimeSpan]::Zero) -RestartCount 3 -RestartInterval (New-TimeSpan -Minutes 1)
+Register-ScheduledTask -TaskName "Orbit" -Action $action -Trigger $trigger -Settings $settings
+Start-ScheduledTask -TaskName "Orbit"
+```
+
+**4. Open http://127.0.0.1:4700** in your browser.
+
+To stop it starting at login, run `Unregister-ScheduledTask -TaskName "Orbit"`.
+
+> If `npm install` fails with an error about **better-sqlite3** or **node-gyp**, install the
+> "Desktop development with C++" workload from
+> [Visual Studio Build Tools](https://visualstudio.microsoft.com/visual-cpp-build-tools/) and run `npm install` again.
+
+### Just want to try it first?
+
+On any system, you can run Orbit without setting up auto-start:
+
+```bash
+git clone https://github.com/aashay21/orbit.git
+cd orbit
+npm install
+npm run build
+npm start
+```
+
+Then open http://127.0.0.1:4700. Press `Ctrl C` in the terminal to stop it.
+
+---
+
+## Open it like a normal app
+
+Orbit can live in its own window with its own icon, just like an installed app:
+
+1. Open **http://127.0.0.1:4700** in **Chrome** or **Edge**.
+2. Click the **install** icon at the right end of the address bar (or **⋮ → Cast, save and share → Install page as app**).
+3. Orbit now appears in your app launcher, Start menu or Launchpad.
+
+**To open the Orbit window automatically at login:**
+
+- **Linux:** run `cd ~/orbit && npm run autostart:install`.
+- **macOS and Windows:** open `chrome://apps` (or `edge://apps`), right-click Orbit and turn on **Start app when you sign in**, if your browser version offers it.
+
+---
+
+## Optional: let Claude Code manage your tasks
+
+If you use [Claude Code](https://claude.com/claude-code), you can connect it to Orbit. Claude can then
+read your board and create, update, block, remind or complete tasks, and write your status update.
+Its changes appear on your board instantly and are marked with a ✦.
+
+**Linux and macOS:**
+
+```bash
+cd ~/orbit && npm run mcp:install
+```
+
+**Windows (PowerShell):**
+
+```powershell
+cd $HOME\orbit
+claude mcp add --scope user orbit -- (Get-Command node).Source "$HOME\orbit\dist\mcp\index.js"
+```
+
+Then start a new Claude Code session and try:
+
+- "What's on my board?" · "What's overdue?"
+- "Create a task under Website/Backend to fix the login bug, high priority, due Friday"
+- "I'm starting WEB-12" · "WEB-12 is blocked waiting on the design" · "WEB-12 is done"
+- "Remind me about WEB-12 tomorrow at 3pm"
+- "Give me my weekly update" · "…from last Wednesday to today" · "Send it to Teams"
+
+Claude can archive tasks but never delete them. Only you can delete tasks.
+
+---
+
+## Optional: Microsoft Teams notifications
+
+Orbit can post messages to you in Teams using a Teams **Workflow**. You need a Microsoft 365
+account where Workflows (Power Automate) is allowed.
+
+1. In Teams, open **Apps → Workflows → Create**, and pick the template **"Send webhook alerts to a chat"**
+   (or **"Post to a channel when a webhook request is received"** for a channel).
+2. Finish the template and **copy the URL** it gives you.
+3. **Important if you want messages sent to yourself:** Teams can't post into your own "chat with
+   yourself". Edit the workflow, and in **every** "Post card in a chat or channel" step (including both the
+   **If yes** and **If no** branches), set **Post as: Flow bot**, **Post in: Chat with Flow bot**, and
+   **Recipient:** your email address. Save. Messages will then arrive in the **Workflows** chat.
+4. In Orbit, go to **Settings**, paste the URL, click **Save**, then **Send test message**.
+5. Choose what you'd like to receive and when:
+
+| Notification | Default |
+| --- | --- |
+| ☀️ Morning summary: due today, overdue, blocked | 09:00, Monday–Friday |
+| ⏰ Due today reminder for each open task | 12:00 on the due day |
+| 🔔 Task reminder | When you set it on the task |
+| ⛔ New blocker | Straight away |
+| ✅ Claude completed a task | Straight away |
+| 📋 Status report | Fridays at 17:00, covering the past 7 days |
+
+If your computer was off at a scheduled time, Orbit sends what you missed when you're back.
+
+**Didn't get the test message?** Orbit only knows that Teams *accepted* it. Open the workflow's
+**run history** in Teams or at [make.powerautomate.com](https://make.powerautomate.com) to see the real error.
+
+The webhook URL works like a password, so keep it private. Orbit stores it only on your computer and never shows it in full.
+
+---
+
+## Using Orbit
+
+1. **Create a project** with the **+** next to *Projects* (or press `P`). Give it a short prefix like `WEB`.
+2. **Add tasks** with **New task** (or press `N`).
+3. **Drag cards** between columns as work moves along. Click a card to see and edit everything about it.
+4. Use **Reports** for your daily or weekly update. Pick the period, check the preview, then **Copy for Teams / email** or **Send to Teams**.
+
+**How tasks become your status update:** each completed task's **title** becomes a bullet under its
+project, and its completed **checklist items** become sub-bullets:
+
+```
+Weekly Status Update (24 Sep – 30 Sep 2026)
+
+Website
+Completed Work:
+* Fixed the login timeout on mobile.
+* Investigated two production alerts:
+   * Disk space warning
+   * Slow API response alert
+```
+
+So write task titles the way you'd like them to read in your update.
+
+| Shortcut | Does |
+| --- | --- |
+| `Ctrl K` | Command palette: jump to any task, project or action |
+| `N` / `P` | New task / new project |
+| `/` | Search |
+| `B` / `R` / `A` | Board / Reports / Activity |
+| `T` | Switch theme (Night → Dawn → Auto) |
+| `Esc` | Close a panel or dialog |
+
+---
+
+## Updating Orbit
+
+Your data is never touched by updates.
+
+**Linux:**
+
+```bash
+cd ~/orbit && git pull && npm run service:update
+```
+
+**macOS:**
+
+```bash
+cd ~/orbit && git pull && npm install && npm run build
+launchctl kickstart -k gui/$(id -u)/com.orbit.server
+```
+
+**Windows (PowerShell):**
+
+```powershell
+cd $HOME\orbit; git pull; npm install; npm run build
+Stop-ScheduledTask -TaskName "Orbit"; Start-ScheduledTask -TaskName "Orbit"
+```
+
+If you connected Claude Code, start a new Claude session to pick up changes.
+
+---
+
+## Your data and backups
 
 | What | Where |
 | --- | --- |
-| Database | `data/orbit.db` (SQLite, one file) |
-| Daily backups | `data/backups/orbit-YYYY-MM-DD.db` (made on start and every 6 hours; the last 14 are kept) |
-| Update snapshots | `data/backups/orbit-pre-update-*.db` (taken before every `service:update`) |
-| Manual snapshot | `npm run backup` |
-| Full JSON export | Command palette → *Export all data*, or `GET /api/export` |
+| All your tasks and settings | `orbit/data/orbit.db` (one file) |
+| Automatic daily backups (last 14 kept) | `orbit/data/backups/` |
+| Make a backup now | `npm run backup` |
+| Export everything as JSON | Command palette (`Ctrl K`) → **Export all data** |
 
-`data/` is ignored by git. To restore a backup, stop the service, copy the backup over `data/orbit.db`, then start the service again.
+To **move Orbit to a new computer**, set it up there, stop it, and copy your `data` folder across.
 
-## Keyboard shortcuts
+To **restore a backup**, stop Orbit, copy a file from `data/backups/` over `data/orbit.db`, and start it again.
 
-| Key | Action |
-| --- | --- |
-| `Ctrl K` | Command palette (jump to any task, project or action) |
-| `N` | New task |
-| `P` | New project |
-| `/` | Search |
-| `B` / `R` / `A` | Board / Reports / Activity |
-| `T` | Cycle theme (Night → Dawn → Auto) |
-| `Esc` | Close panel or dialog |
-| `Enter` on a focused card | Open it |
-| `Space` on a focused card | Pick up and move it with the arrow keys |
+---
 
-## Development
+## Troubleshooting
+
+**The page won't load.** Check that Orbit is running:
+- Linux: `systemctl --user status orbit` (logs: `journalctl --user -u orbit -n 50`)
+- macOS: `launchctl print gui/$(id -u)/com.orbit.server` (logs: `~/orbit/data/orbit.log`)
+- Windows: `Get-ScheduledTask -TaskName Orbit` (or run `npm start` in PowerShell to see errors)
+
+**Port 4700 is already used by something else.** Start Orbit on another port with the `PORT` setting,
+for example `PORT=4800 npm start` (Windows: `$env:PORT=4800; npm start`), and add the same setting to your auto-start entry.
+
+**`npm install` fails on better-sqlite3.** Make sure you're on Node.js 22+ (`node --version`). On Windows,
+install the Visual Studio C++ build tools (see the Windows section); on Linux, `sudo apt install build-essential python3`.
+
+**Claude doesn't see Orbit.** Run `claude mcp get orbit`, and make sure Orbit is running. If you
+changed Node versions, run the Claude Code step again.
+
+---
+
+## For developers
 
 ```bash
 npm install
-npm run dev        # API on :4700 (data in ./data-dev) + Vite UI on http://127.0.0.1:4701
-npm test           # server tests (vitest)
+npm run dev        # API on :4700 (data in ./data-dev) + live-reloading UI on http://127.0.0.1:4701
+npm test           # tests (vitest)
 npm run typecheck
 ```
 
-Stop the service first (`systemctl --user stop orbit`) if you want to run the dev server on port 4700.
+Stop the background Orbit first if it's using port 4700.
 
-## Structure
-
-```
-server/          Hono API + SQLite (better-sqlite3)
-  db/            schema migrations, connection, backups
-  repo.ts        all data logic: projects, columns, tasks, activity, stats
-  app.ts         REST routes, validation (zod), live-update stream (SSE)
-  index.ts       entry point: static files, backups, listen on 127.0.0.1
-mcp/             MCP server for Claude Code (tools.ts, resolve.ts for names/dates/repeat rules)
-shared/          types and recurrence rules shared by server, UI and MCP
-web/             React + Vite UI (dnd-kit for dragging, Motion for animation)
-scripts/         service install/update, snapshots
-tests/           server tests
-```
-
-### API (quick reference)
-
-Every mutation takes an optional `x-orbit-actor: claude` header, so history shows who made each change.
+**Built with** TypeScript, React, Vite, dnd-kit and Motion for the UI; Hono and SQLite (better-sqlite3)
+on the server; and the MCP SDK for Claude Code. [`docs/BUILD-GUIDE.md`](docs/BUILD-GUIDE.md) explains
+every feature and how it's built.
 
 ```
-GET    /api/board                  columns, projects, tags, open tasks
-GET    /api/stats                  done today / this week / overdue
-GET    /api/activity?limit=&before=
-GET    /api/report?from=&to=&projectId=&format=json|md|html&notes=0
-POST   /api/projects               {name, parentId?, key?, color?}
-PATCH  /api/projects/:id           {..., archived?}
-POST   /api/tasks                  {title, projectId, columnId?, priority?, dueDate?, tags?, subtasks?, recurrence?}
-GET    /api/tasks/:key             task + subtasks, notes, history
-PATCH  /api/tasks/:key             {title?, description?, priority?, dueDate?, projectId?, tags?, recurrence?, blocked?}
-POST   /api/tasks/:key/move        {columnId, afterKey?, beforeKey?}
-POST   /api/tasks/:key/notes       {body}
-POST   /api/tasks/:key/archive | /restore
-GET    /api/tasks?archived=1&q=&projectId=
-GET    /api/events                 server-sent events for live updates
+server/          API and database (repo.ts holds all the logic)
+  notify/        Teams cards and the notification scheduler
+mcp/             Claude Code (MCP) server
+shared/          types, report formats and repeat rules used everywhere
+web/             the user interface
+scripts/         Linux service, autostart and backup helpers
+tests/           automated tests
 ```
+
+Orbit listens only on `127.0.0.1`, so other devices on your network can't reach it. The API
+rejects requests from other websites.
+
+## License
+
+[MIT](LICENSE) © aashay21

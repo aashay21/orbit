@@ -15,7 +15,8 @@ const projectRoot = existsSync(resolve(here, "../package.json")) ? resolve(here,
 const port = Number(process.env.PORT ?? 4700);
 // 127.0.0.1 only: Orbit is never reachable from other machines on the network.
 const host = "127.0.0.1";
-const dataDir = resolve(process.env.ORBIT_DATA ?? join(projectRoot, "data"));
+// `--dev` (used by `npm run dev`) keeps development data apart from your real board.
+const dataDir = resolve(process.env.ORBIT_DATA ?? join(projectRoot, process.argv.includes("--dev") ? "data-dev" : "data"));
 const webDir = resolve(projectRoot, "dist/web");
 
 mkdirSync(dataDir, { recursive: true });
