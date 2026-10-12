@@ -3,7 +3,7 @@ import { format } from "date-fns";
 import type { NotificationsView, PublicNotificationSettings } from "@shared/notifications";
 import { api, type NotificationsPatch } from "../api";
 import { useStore } from "../store";
-import { cx, relativeTime } from "../util";
+import { AUTO_ARCHIVE_CHOICES, autoArchiveLabel, cx, relativeTime } from "../util";
 import { Icon } from "./Icon";
 import { ProjectPicker } from "./ui";
 
@@ -17,7 +17,7 @@ const KIND_LABEL: Record<string, string> = {
 };
 
 export function SettingsView() {
-  const { board, toast, load } = useStore();
+  const { board, toast, load, run } = useStore();
   const [view, setView] = useState<NotificationsView | null>(null);
   const [url, setUrl] = useState("");
   const [busy, setBusy] = useState<string | null>(null);
@@ -55,7 +55,7 @@ export function SettingsView() {
       <div className="head">
         <div>
           <div className="eyebrow">SETTINGS</div>
-          <h1 className="title">Notifications<em>· Microsoft Teams</em></h1>
+          <h1 className="title">Settings<em>· board & notifications</em></h1>
         </div>
         <label className="toggle big">
           <input type="checkbox" checked={s.enabled} onChange={(e) => save({ enabled: e.target.checked }, e.target.checked ? "Notifications on" : "Notifications paused")} />
@@ -105,6 +105,26 @@ export function SettingsView() {
               Times use this laptop's clock. If Orbit wasn't running at a scheduled time, it catches up when you're back
               (same day for digests, up to 3 days for reports, a week for task reminders). Changes apply from now on.
             </p>
+          </section>
+
+          <section className="set-card">
+            <h3><Icon name="archive" size={14} />Board</h3>
+            <div className="rule">
+              <span />
+              <div className="rule-text">
+                <b>Archive done tasks automatically</b>
+                <span>Keeps the Done column short. Archived tasks still count in reports and can be restored from Archive.</span>
+              </div>
+              <div className="rule-controls">
+                <select className="time-input" value={String(board?.settings.autoArchiveDays ?? "")}
+                  onChange={(e) => {
+                    const d = e.target.value ? Number(e.target.value) : null;
+                    void run(() => api.saveBoardSettings({ autoArchiveDays: d }), d ? `Done tasks will be archived after ${d} days` : "Auto-archive turned off");
+                  }}>
+                  {AUTO_ARCHIVE_CHOICES.map((d) => <option key={String(d)} value={d ?? ""}>{autoArchiveLabel(d)}</option>)}
+                </select>
+              </div>
+            </div>
           </section>
 
           <section className="set-card log-card">

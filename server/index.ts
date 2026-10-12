@@ -24,6 +24,20 @@ const db = openDatabase(join(dataDir, "orbit.db"));
 const repo = new Repo(db);
 const notifier = new Notifier(repo);
 notifier.start();
+
+// Housekeeping: archive tasks that have been done for a while (see Board settings). Shortly after
+// start, then hourly.
+const housekeep = () => {
+  try {
+    const n = repo.autoArchiveDone();
+    if (n) console.log(`Auto-archived ${n} done task${n === 1 ? "" : "s"}`);
+  } catch (e) {
+    console.error("Auto-archive failed:", e);
+  }
+};
+setTimeout(housekeep, 10_000).unref();
+setInterval(housekeep, 60 * 60 * 1000).unref();
+
 const app = createApp(repo, notifier);
 
 if (existsSync(webDir)) {

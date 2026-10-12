@@ -1,4 +1,4 @@
-import type { Activity, Board, Column, Priority, Project, Recurrence, Stats, Tag, Task, TaskDetail } from "@shared/types";
+import type { Activity, Board, BoardSettings, Column, Priority, Project, Recurrence, Stats, Tag, Task, TaskDetail } from "@shared/types";
 import type { Report } from "@shared/report";
 import type { NotificationSettings, NotificationsView } from "@shared/notifications";
 
@@ -68,6 +68,7 @@ export const api = {
 
   report: (from: string, to: string, projectId: number | null) =>
     request<Report>("GET", `/report?from=${from}&to=${to}${projectId != null ? `&projectId=${projectId}` : ""}`),
+  saveBoardSettings: (s: Partial<BoardSettings>) => request<BoardSettings>("PUT", "/settings/board", s),
   notifications: () => request<NotificationsView>("GET", "/notifications"),
   saveNotifications: (p: NotificationsPatch) => request<NotificationsView>("PUT", "/notifications", p),
   testNotification: () => request<{ ok: boolean; error: string | null; view: NotificationsView }>("POST", "/notifications/test"),

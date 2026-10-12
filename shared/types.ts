@@ -103,11 +103,19 @@ export interface TaskDetail extends Task {
   activity: Activity[];
 }
 
+export interface BoardSettings {
+  /** Tasks sitting in a done column this many days are archived automatically. null = never. */
+  autoArchiveDays: number | null;
+}
+
+export const DEFAULT_BOARD_SETTINGS: BoardSettings = { autoArchiveDays: 7 };
+
 export interface Board {
   columns: Column[];
   projects: Project[];
   tags: Tag[];
   tasks: Task[];
+  settings: BoardSettings;
 }
 
 export interface Stats {

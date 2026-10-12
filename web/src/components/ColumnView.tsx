@@ -4,7 +4,7 @@ import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable"
 import type { Column, Project, Tag, Task } from "@shared/types";
 import { api } from "../api";
 import { useStore } from "../store";
-import { cx, SWATCHES } from "../util";
+import { AUTO_ARCHIVE_CHOICES, autoArchiveLabel, cx, SWATCHES } from "../util";
 import { Icon } from "./Icon";
 import { SortableCard } from "./TaskCard";
 import { MenuItem, Popover } from "./ui";
@@ -27,7 +27,8 @@ export function ColumnView({ column, columns, droppableId, keys, taskByKey, proj
   const { setNodeRef } = useDroppable({ id: droppableId, data: { type: "column" } });
   const { set, run, board } = useStore();
   const menuRef = useRef<HTMLButtonElement>(null);
-  const [menu, setMenu] = useState<null | "main" | "color" | "delete">(null);
+  const [menu, setMenu] = useState<null | "main" | "color" | "delete" | "autoArchive">(null);
+  const autoDays = board?.settings.autoArchiveDays ?? null;
   const [renaming, setRenaming] = useState(false);
   const [wipEdit, setWipEdit] = useState(false);
 
@@ -48,6 +49,7 @@ export function ColumnView({ column, columns, droppableId, keys, taskByKey, proj
           <span className="col-name" onDoubleClick={() => setRenaming(true)}>{column.name}</span>
         )}
         <span className="cnt">{keys.length !== total ? `${keys.length}/${total}` : total}</span>
+        {column.isDone && autoDays && <span className="auto-archive-hint" title={`Auto-archive: tasks here are archived ${autoDays} days after they're completed`}><Icon name="archive" size={10} />{autoDays}d</span>}
         {column.isDone && <span className="done-badge" title="Tasks here count as completed"><Icon name="check" size={10} /></span>}
         <span className="col-actions">
           <button title="Add task here" onClick={() => set({ newTask: { columnId: column.id } })}><Icon name="plus" size={15} /></button>
@@ -87,7 +89,19 @@ export function ColumnView({ column, columns, droppableId, keys, taskByKey, proj
             Archive all tasks
           </MenuItem>
         )}
+        {column.isDone && <MenuItem icon="archive" hint={autoDays ? `${autoDays}d` : "off"} onClick={() => setMenu("autoArchive")}>Auto-archive…</MenuItem>}
         {columns.length > 1 && <MenuItem icon="trash" danger onClick={() => setMenu("delete")}>Delete column…</MenuItem>}
+      </Popover>
+
+      <Popover anchor={menuRef} open={menu === "autoArchive"} onClose={close} align="end" width={240}>
+        <div className="menu-title">Archive done tasks automatically</div>
+        <div className="menu-note">They stay in your reports and can be restored from Archive.</div>
+        {AUTO_ARCHIVE_CHOICES.map((d) => (
+          <MenuItem key={String(d)} active={d === autoDays} onClick={() => {
+            close();
+            void run(() => api.saveBoardSettings({ autoArchiveDays: d }), d ? `Done tasks will be archived after ${d} days` : "Auto-archive turned off");
+          }}>{autoArchiveLabel(d)}</MenuItem>
+        ))}
       </Popover>
 
       <Popover anchor={menuRef} open={menu === "color"} onClose={close} align="end" width={196}>

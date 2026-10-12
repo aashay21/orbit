@@ -145,3 +145,51 @@ describe("HTTP API", () => {
     expect((await post("/projects", { name: "Evil" }, { origin: "https://example.com" })).status).toBe(403);
   });
 });
+
+describe("auto-archiving done tasks", () => {
+  const daysAgo = (n: number) => new Date(Date.now() - n * 86_400_000).toISOString();
+  const completeAt = (key: string, iso: string) => repo.db.prepare("UPDATE tasks SET completed_at = ? WHERE key = ?").run(iso, key);
+
+  it("archives tasks done for longer than the setting, keeps recent ones, and logs it", () => {
+    const p = repo.createProject(me, { name: "Orbit" });
+    const old = repo.createTask(me, { title: "old", projectId: p.id, columnId: col("Done").id });
+    const recent = repo.createTask(me, { title: "recent", projectId: p.id, columnId: col("Done").id });
+    const open = repo.createTask(me, { title: "open", projectId: p.id, columnId: col("Review").id });
+    completeAt(old.key, daysAgo(8));
+    completeAt(recent.key, daysAgo(6));
+
+    expect(repo.getBoardSettings()).toEqual({ autoArchiveDays: 7 });
+    expect(repo.autoArchiveDone()).toBe(1);
+    expect(repo.getBoard().tasks.map((t) => t.key).sort()).toEqual([open.key, recent.key].sort());
+    expect(repo.getTask(old.key).archivedAt).not.toBeNull();
+    expect(repo.getTask(old.key).activity[0]).toMatchObject({ type: "archived", actor: "system", data: { auto: true, days: 7 } });
+    expect(repo.autoArchiveDone()).toBe(0); // idempotent
+
+    // Archived tasks still count in reports for the period they were completed.
+    const from = daysAgo(10).slice(0, 10);
+    const to = new Date().toISOString().slice(0, 10);
+    expect(repo.getReport(from, to).completed.map((t) => t.title).sort()).toEqual(["old", "recent"]);
+  });
+
+  it("follows a shorter or disabled setting", () => {
+    const p = repo.createProject(me, { name: "Orbit" });
+    const t = repo.createTask(me, { title: "x", projectId: p.id, columnId: col("Done").id });
+    completeAt(t.key, daysAgo(4));
+    repo.saveBoardSettings(me, { autoArchiveDays: null });
+    expect(repo.autoArchiveDone()).toBe(0);
+    repo.saveBoardSettings(me, { autoArchiveDays: 3 });
+    expect(repo.getBoard().settings.autoArchiveDays).toBe(3);
+    expect(repo.autoArchiveDone()).toBe(1);
+  });
+
+  it("validates the setting over the API and applies it straight away", async () => {
+    const app = createApp(repo);
+    const p = repo.createProject(me, { name: "Orbit" });
+    const t = repo.createTask(me, { title: "x", projectId: p.id, columnId: col("Done").id });
+    completeAt(t.key, daysAgo(2));
+    const put = (b: unknown) => app.request("/api/settings/board", { method: "PUT", body: JSON.stringify(b), headers: { "content-type": "application/json" } });
+    expect((await put({ autoArchiveDays: 0 })).status).toBe(400);
+    expect(await (await put({ autoArchiveDays: 1 })).json()).toEqual({ autoArchiveDays: 1 });
+    expect(repo.getTask(t.key).archivedAt).not.toBeNull();
+  });
+});

@@ -195,7 +195,7 @@ export function describe(a: Activity): string {
     case "moved": return `${who} moved it from ${d.from} to ${d.to}`;
     case "completed": return `${who} completed it (${d.from} → ${d.to})`;
     case "reopened": return `${who} reopened it (${d.from} → ${d.to})`;
-    case "archived": return `${who} archived it`;
+    case "archived": return d.auto ? `Archived automatically after ${d.days} days in Done` : `${who} archived it`;
     case "restored": return `${who} restored it`;
     case "deleted": return `${who} deleted it`;
     case "note": return `${who} added a note`;

@@ -35,6 +35,7 @@ turn on Teams notifications.
 - **Task IDs that never change**, like `WEB-12`.
 - **Everything a task needs:** priority, due date, tags, notes, a checklist, a "blocked" flag with the reason, and full history.
 - **Repeating tasks:** daily, weekdays, weekly on chosen days, monthly, yearly. Finishing one creates the next.
+- **A Done column that tidies itself:** finished tasks are archived automatically after 7 days (or 3, 14, 30, or never). They stay in your reports and can be restored any time.
 - **Reminders** at any date and time you choose.
 - **Status reports** for a day, a week (ending on any weekday you like) or any date range, in a clean "Status Update" format you can copy into Teams or email.
 - **Teams notifications** (optional): morning summary, due-today reminders, task reminders, new blockers, and your weekly report on a schedule.

@@ -167,7 +167,7 @@ describe("resolvers", () => {
   });
 
   it("parses repeat rules from words", () => {
-    const board = { columns: [], projects: [], tags: [], tasks: [] } as Board;
+    const board: Board = { columns: [], projects: [], tags: [], tasks: [], settings: { autoArchiveDays: 7 } };
     expect(parseRecurrence("every weekday", board)).toEqual({ freq: "weekly", interval: 1, weekdays: [1, 2, 3, 4, 5] });
     expect(parseRecurrence("every monday and thursday", board)).toEqual({ freq: "weekly", interval: 1, weekdays: [1, 4] });
     expect(parseRecurrence("every 2 weeks on fri", board)).toEqual({ freq: "weekly", interval: 2, weekdays: [5] });

@@ -91,6 +91,9 @@ export function projectPath(projects: Project[], id: number): string[] {
 export const isTyping = (el: EventTarget | null) =>
   el instanceof HTMLElement && (el.isContentEditable || ["INPUT", "TEXTAREA", "SELECT"].includes(el.tagName));
 
+export const AUTO_ARCHIVE_CHOICES: (number | null)[] = [3, 7, 14, 30, null];
+export const autoArchiveLabel = (d: number | null) => (d ? `After ${d} days` : "Never");
+
 export const cx = (...c: (string | false | null | undefined)[]) => c.filter(Boolean).join(" ");
 
 /**

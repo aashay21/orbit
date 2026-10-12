@@ -169,6 +169,14 @@ export function createApp(repo: Repo, notifier?: Notifier) {
 
   // Notifications (Teams)
   const notificationsView = (): NotificationsView => ({ settings: publicSettings(repo.getNotificationSettings()), log: repo.notifyLogRecent() });
+  api.get("/settings/board", (c) => c.json(repo.getBoardSettings()));
+  api.put("/settings/board", async (c) => {
+    const patch = await body(c, z.object({ autoArchiveDays: z.number().int().min(1).max(365).nullable() }).partial());
+    const saved = repo.saveBoardSettings(ctxOf(c), patch);
+    repo.autoArchiveDone(); // apply a shorter delay straight away
+    return c.json(saved);
+  });
+
   api.get("/notifications", (c) => c.json(notificationsView()));
   api.put("/notifications", async (c) => {
     const patch = await body(c, schemas.notifications);

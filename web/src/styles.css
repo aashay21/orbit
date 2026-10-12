@@ -885,3 +885,10 @@ kbd {
 .status-preview ul { list-style: disc; }
 .status-preview ul ul { list-style: circle; }
 .preview-card h3 span { letter-spacing: 0; text-transform: none; font-family: var(--font); color: var(--faint); }
+
+.auto-archive-hint {
+  display: inline-flex; align-items: center; gap: 3px; flex: none;
+  font-family: var(--mono); font-size: 9.5px; color: var(--faint);
+  padding: 1px 5px; border-radius: 6px; border: 1px solid var(--panel-b); white-space: nowrap;
+}
+.col-h .col-name { flex-shrink: 0; }

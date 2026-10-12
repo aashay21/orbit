@@ -1,8 +1,9 @@
 import { EventEmitter } from "node:events";
 import type { DB } from "./db/index.ts";
 import type {
-  Activity, Actor, Board, ChangeEvent, Column, Note, Priority, Project, Recurrence, Stats, Subtask, Tag, Task, TaskDetail,
+  Activity, Actor, Board, BoardSettings, ChangeEvent, Column, Note, Priority, Project, Recurrence, Stats, Subtask, Tag, Task, TaskDetail,
 } from "../shared/types.ts";
+import { DEFAULT_BOARD_SETTINGS } from "../shared/types.ts";
 import { fmtDate, nextOccurrence, parseDate } from "../shared/recurrence.ts";
 import type { Report, ReportTask } from "../shared/report.ts";
 import { DEFAULT_NOTIFICATIONS, type NotificationLogEntry, type NotificationSettings } from "../shared/notifications.ts";
@@ -367,7 +368,44 @@ export class Repo {
         AND t.project_id NOT IN (SELECT id FROM projects WHERE archived_at IS NOT NULL)
         ORDER BY t.column_id, t.position`)
       .all() as Row[]).map(toTask);
-    return { columns, projects, tags, tasks };
+    return { columns, projects, tags, tasks, settings: this.getBoardSettings() };
+  }
+
+  getBoardSettings(): BoardSettings {
+    const row = this.db.prepare("SELECT value FROM settings WHERE key = 'board'").get() as Row | undefined;
+    return { ...DEFAULT_BOARD_SETTINGS, ...(row ? (JSON.parse(row.value) as Partial<BoardSettings>) : {}) };
+  }
+
+  saveBoardSettings(ctx: Ctx, patch: Partial<BoardSettings>): BoardSettings {
+    const next = { ...this.getBoardSettings(), ...patch };
+    this.db.prepare("INSERT INTO settings (key, value) VALUES ('board', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value")
+      .run(JSON.stringify(next));
+    this.emit(ctx, "settings", "Updated board settings");
+    return next;
+  }
+
+  /**
+   * Archives tasks that have sat in a done column for the configured number of days (counted from
+   * when they were completed). They stay in reports and can be restored. Returns how many.
+   */
+  autoArchiveDone(now = new Date()): number {
+    const days = this.getBoardSettings().autoArchiveDays;
+    if (!days) return 0;
+    const cutoff = new Date(now.getTime() - days * 86_400_000).toISOString();
+    return this.db.transaction(() => {
+      const rows = this.db.prepare(`SELECT t.* FROM tasks t JOIN columns c ON c.id = t.column_id
+          WHERE c.is_done = 1 AND t.archived_at IS NULL AND COALESCE(t.completed_at, t.updated_at) <= ?`).all(cutoff) as Row[];
+      if (!rows.length) return 0;
+      const ctx: Ctx = { actor: "system", clientId: null };
+      const stamp = now.toISOString();
+      const upd = this.db.prepare("UPDATE tasks SET archived_at = ? WHERE id = ?");
+      for (const r of rows) {
+        upd.run(stamp, r.id);
+        this.log(ctx, "archived", r, { auto: true, days });
+      }
+      this.emit(ctx, "task", `Archived ${rows.length} task${rows.length === 1 ? "" : "s"} done for over ${days} days`);
+      return rows.length;
+    })();
   }
 
   listTasks(opts: { archived?: boolean; projectId?: number; columnId?: number; search?: string; limit?: number } = {}): Task[] {
